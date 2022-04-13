@@ -300,6 +300,10 @@ class AOTEngine(nn.Module):
         self.long_term_memories = updated_long_term_memories
 
     def update_short_term_memory(self, curr_mask, curr_id_emb=None):
+        '''
+        In the early train epochs, use gt mask to make curr_id_emb
+        after that, use predicted curr_mask to mask curr_id_emb
+        '''
         if curr_id_emb is None:
             if len(curr_mask.size()) == 3 or curr_mask.size()[0] == 1:
                 curr_one_hot_mask = one_hot_mask(curr_mask, self.max_obj_num)
@@ -307,25 +311,23 @@ class AOTEngine(nn.Module):
                 curr_one_hot_mask = curr_mask
             curr_id_emb = self.assign_identity(curr_one_hot_mask)
 
-        lstt_curr_memories = self.curr_lstt_output[1]
-        lstt_curr_memories_2d = []
-        for layer_idx in range(len(lstt_curr_memories)):
-            curr_v = lstt_curr_memories[layer_idx][1]
-            curr_v = self.AOT.LSTT.layers[layer_idx].linear_V(curr_v +
-                                                              curr_id_emb)
-            lstt_curr_memories[layer_idx][1] = curr_v
-            lstt_curr_memories_2d.append([
-                seq_to_2d(lstt_curr_memories[layer_idx][0], self.enc_size_2d),
-                seq_to_2d(lstt_curr_memories[layer_idx][1], self.enc_size_2d)
-            ])
+        lstt_curr_kvs = self.curr_lstt_output[1]
+        lstt_curr_local_kvs = []
+        for layer_idx in range(len(lstt_curr_kvs)):
+            lstt_layer = self.AOT.LSTT.layers[layer_idx]
 
-        self.short_term_memories_list.append(lstt_curr_memories_2d)
+            curr_kv = lstt_curr_kvs[layer_idx]
+            global_kv = lstt_layer.make_global_kv(curr_kv, curr_id_emb)
+            local_kv = lstt_layer.make_local_kv(global_kv, self.enc_size_2d)
+            lstt_curr_local_kvs.append(local_kv)
+
+        self.short_term_memories_list.append(lstt_curr_local_kvs)
         self.short_term_memories_list = self.short_term_memories_list[
             -self.short_term_mem_skip:]
         self.short_term_memories = self.short_term_memories_list[0]
 
         if self.frame_step - self.last_mem_step >= self.long_term_mem_gap:
-            self.update_long_term_memory(lstt_curr_memories)
+            self.update_long_term_memory(local_kv)
             self.last_mem_step = self.frame_step
 
     def match_propogate_one_frame(self, img=None, img_embs=None):

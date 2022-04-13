@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 from torch import nn
 
+
 from networks.layers.basic import DropPath, GroupNorm1D, GNActDWConv2d, seq_to_2d
 from networks.layers.attention import MultiheadAttention, MultiheadLocalAttentionV2, MultiheadLocalAttentionV3
 
@@ -40,6 +41,7 @@ class LongShortTermTransformer(nn.Module):
                  activation="gelu",
                  return_intermediate=False,
                  intermediate_norm=True,
+                 use_lstt_v2 = False,
                  final_norm=True):
 
         super().__init__()
@@ -63,7 +65,7 @@ class LongShortTermTransformer(nn.Module):
                 LongShortTermTransformerBlock(d_model, self_nhead, att_nhead,
                                               dim_feedforward, droppath_rate,
                                               lt_dropout, st_dropout,
-                                              droppath_lst, activation))
+                                              droppath_lst, activation,use_lstt_v2=use_lstt_v2))
         self.layers = nn.ModuleList(layers)
 
         num_norms = num_layers - 1 if intermediate_norm else 0
@@ -134,9 +136,11 @@ class LongShortTermTransformerBlock(nn.Module):
                  droppath_lst=False,
                  activation="gelu",
                  local_dilation=1,
+                 use_lstt_v2 = False,
                  enable_corr=True):
         super().__init__()
 
+        self.use_lstt_v2 = use_lstt_v2
         # Self-attention
         self.norm1 = _get_norm(d_model)
         self.self_attn = MultiheadAttention(d_model, self_nhead)
@@ -175,6 +179,8 @@ class LongShortTermTransformerBlock(nn.Module):
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.activation = GNActDWConv2d(dim_feedforward)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.gating_linear = nn.Linear(d_model, 1)
+        self.identify_linear = nn.Linear(d_model, d_model)
 
         self.droppath = DropPath(droppath, batch_dim=1)
         self._init_weight()
@@ -185,6 +191,23 @@ class LongShortTermTransformerBlock(nn.Module):
             n, c, h, w = size
             pos = pos.view(h, w, n, c).permute(2, 3, 0, 1)
         return tensor if pos is None else tensor + pos
+
+    def make_global_kv(self, curr_kv, curr_id_emb):
+        curr_K, curr_V = curr_kv
+        if self.use_lstt_v2:
+            gate = 1 + F.tanh(self.gating_linear(curr_id_emb))  # HW,B,1
+            K = curr_K * gate.expand(curr_K.shape)
+            V =  self.linear_V(curr_V + self.identify_linear(curr_id_emb))
+        else:
+            K = curr_K
+            V = self.linear_V(curr_V + curr_id_emb)
+        return [K,V]
+    
+    def make_local_kv(self, global_kv, size_2d):
+        k,v = global_kv
+        K = seq_to_2d(k, size_2d)
+        V = seq_to_2d(v, size_2d)
+        return [K,V]
 
     def forward(self,
                 tgt,
@@ -210,15 +233,13 @@ class LongShortTermTransformerBlock(nn.Module):
         curr_V = _tgt
 
         local_Q = seq_to_2d(curr_Q, size_2d)
-
-        if curr_id_emb is not None:
-            global_K = curr_K
-            global_V = self.linear_V(curr_V + curr_id_emb)
-            local_K = seq_to_2d(global_K, size_2d)
-            local_V = seq_to_2d(global_V, size_2d)
-        else:
+        
+        if curr_id_emb is None: # HW,B,C
             global_K, global_V = long_term_memory
             local_K, local_V = short_term_memory
+        elif self.use_lstt_v2:
+            global_K,global_V = self.make_global_kv([curr_K,curr_V], curr_id_emb)
+            local_K,local_V = self.make_local_kv([global_K,global_V],size_2d)
 
         tgt2 = self.long_term_attn(curr_Q, global_K, global_V)[0]
         tgt3 = self.short_term_attn(local_Q, local_K, local_V)[0]
