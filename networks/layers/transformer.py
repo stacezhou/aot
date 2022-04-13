@@ -192,6 +192,23 @@ class LongShortTermTransformerBlock(nn.Module):
             pos = pos.view(h, w, n, c).permute(2, 3, 0, 1)
         return tensor if pos is None else tensor + pos
 
+    def make_global_kv(self, curr_kv, curr_id_emb):
+        curr_K, curr_V = curr_kv
+        if self.use_lstt_v2:
+            gate = 1 + F.tanh(self.gating_linear(curr_id_emb))  # HW,B,1
+            K = curr_K * gate.expand(curr_K.shape)
+            V =  self.linear_V(curr_V + self.identify_linear(curr_id_emb))
+        else:
+            K = curr_K
+            V = self.linear_V(curr_V + curr_id_emb)
+        return [K,V]
+    
+    def make_local_kv(self, global_kv, size_2d):
+        k,v = global_kv
+        K = seq_to_2d(k, size_2d)
+        V = seq_to_2d(v, size_2d)
+        return [K,V]
+
     def forward(self,
                 tgt,
                 long_term_memory=None,
@@ -221,17 +238,8 @@ class LongShortTermTransformerBlock(nn.Module):
             global_K, global_V = long_term_memory
             local_K, local_V = short_term_memory
         elif self.use_lstt_v2:
-            gate = 1 + F.tanh(self.gating_linear(curr_id_emb)) # HW,B,1
-            global_K = curr_K * gate.expand(curr_K.shape)
-            global_V = self.linear_V(curr_V + self.identify_linear(curr_id_emb))
-            local_K = seq_to_2d(global_K, size_2d)
-            local_V = seq_to_2d(global_V, size_2d)
-        else:
-            global_K = curr_K
-            global_V = self.linear_V(curr_V + curr_id_emb)
-            local_K = seq_to_2d(global_K, size_2d)
-            local_V = seq_to_2d(global_V, size_2d)
-
+            global_K,global_V = self.make_global_kv([curr_K,curr_V], curr_id_emb)
+            local_K,local_V = self.make_local_kv([global_K,global_V],size_2d)
 
         tgt2 = self.long_term_attn(curr_Q, global_K, global_V)[0]
         tgt3 = self.short_term_attn(local_Q, local_K, local_V)[0]
