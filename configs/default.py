@@ -111,6 +111,36 @@ class DefaultEngineConfig():
         self.DIR_YTB = os.path.join(self.DIR_DATA, 'YTB')
         self.DIR_STATIC = os.path.join(self.DIR_DATA, 'Static')
 
+        self.UVO = dict(
+            image_root = os.path.join(self.DIR_DATA, 'UVO','JPEGImages'),
+            label_root = os.path.join(self.DIR_DATA, 'UVO','Annotations'),
+            repeat_time=1,
+            rand_gap=3,
+            dynamic_merge=True,
+        )
+        self.OVIS = dict(
+            image_root = os.path.join(self.DIR_DATA, 'OVIS','JPEGImages'),
+            label_root = os.path.join(self.DIR_DATA, 'OVIS','Annotations'),
+            repeat_time=1,
+            rand_gap=3,
+            dynamic_merge=True,
+        )
+        def collect_imglistdic(image_root, label_root, suffix = '.jpg',**kw):
+            from pathlib import Path
+            videos = [v.name for v in Path(image_root).iterdir()]
+            label_videos = [v.name for v in Path(label_root).iterdir()]
+            assert set(videos) == set(label_videos)
+            imglistdict = dict()
+            for v in videos:
+                imglist = [f.name for f in (Path(image_root)/v).glob(f'*{suffix}')]
+                labellist = [f.name for f in (Path(label_root)/v).glob(f'*{suffix}')]
+                assert len(imglist) == len(labellist)
+                imglistdict[v] = [sorted(imglist),sorted(labellist)]
+            return imglistdict
+        self.UVO['imglistdic'] = collect_imglistdic(**self.UVO)
+        self.OVIS['imglistdic'] = collect_imglistdic(**self.OVIS)
+        
+        
         self.DIR_ROOT = './results'
 
         self.DIR_RESULT = os.path.join(self.DIR_ROOT, 'result', self.EXP_NAME,
