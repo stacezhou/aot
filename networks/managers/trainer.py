@@ -11,7 +11,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dataloaders.train_datasets import DAVIS2017_Train, YOUTUBEVOS_Train, StaticTrain, TEST
+from dataloaders.train_datasets import DAVIS2017_Train, YOUTUBEVOS_Train, StaticTrain, TEST, VOSTrain
 import dataloaders.video_transforms as tr
 
 from utils.meters import AverageMeter
@@ -262,6 +262,34 @@ class Trainer(object):
                 max_obj_n=cfg.MODEL_MAX_OBJ_NUM)
             train_datasets.append(pretrain_vos_dataset)
             self.enable_prev_frame = False
+
+        if 'ovis' in cfg.DATASETS:
+            cfg.OVIS.update(dict(
+                transforms=composed_transforms,
+                seq_len=cfg.DATA_SEQ_LEN,
+                rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
+                merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
+                enable_prev_frame=self.enable_prev_frame,
+                max_obj_n=cfg.MODEL_MAX_OBJ_NUM
+            ))
+            train_ovis_dataset = VOSTrain(
+                **cfg.OVIS
+            )
+            train_datasets.append(train_ovis_dataset)
+
+        if 'uvo' in cfg.DATASETS:
+            cfg.UVO.update(dict(
+                transforms=composed_transforms,
+                seq_len=cfg.DATA_SEQ_LEN,
+                rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
+                merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
+                enable_prev_frame=self.enable_prev_frame,
+                max_obj_n=cfg.MODEL_MAX_OBJ_NUM
+            ))
+            train_uvo_dataset = VOSTrain(
+                **cfg.UVO
+            ) 
+            train_datasets.append(train_uvo_dataset)
 
         if 'davis2017' in cfg.DATASETS:
             train_davis_dataset = DAVIS2017_Train(
