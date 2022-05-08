@@ -12,6 +12,7 @@ class DefaultEngineConfig():
 
         self.STAGE_NAME = 'default'
 
+        self.USE_LSTT_V2 = False
         self.DATASETS = ['youtubevos']
         self.DATA_WORKERS = 8
         self.DATA_RANDOMCROP = (465,
@@ -127,8 +128,8 @@ class DefaultEngineConfig():
         )
         def collect_imglistdic(image_root, label_root, suffix = '.jpg',**kw):
             from pathlib import Path
-            videos = [v.name for v in Path(image_root).iterdir()]
-            label_videos = [v.name for v in Path(label_root).iterdir()]
+            videos = [v.name for v in Path(image_root).iterdir() if v.is_dir()]
+            label_videos = [v.name for v in Path(label_root).iterdir() if v.is_dir()]
             assert set(videos) == set(label_videos)
             imglistdict = dict()
             for v in videos:

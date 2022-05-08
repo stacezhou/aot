@@ -254,7 +254,7 @@ class Trainer(object):
 
         if 'ovis' in cfg.DATASETS:
             cfg.OVIS.update(dict(
-                transforms=composed_transforms,
+                transform=composed_transforms,
                 seq_len=cfg.DATA_SEQ_LEN,
                 rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
                 merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
@@ -268,7 +268,7 @@ class Trainer(object):
 
         if 'uvo' in cfg.DATASETS:
             cfg.UVO.update(dict(
-                transforms=composed_transforms,
+                transform=composed_transforms,
                 seq_len=cfg.DATA_SEQ_LEN,
                 rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
                 merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
