@@ -133,7 +133,7 @@ class DefaultEngineConfig():
             imglistdict = dict()
             for v in videos:
                 imglist = [f.name for f in (Path(image_root)/v).glob(f'*{suffix}')]
-                labellist = [f.name for f in (Path(label_root)/v).glob(f'*{suffix}')]
+                labellist = [f.name for f in (Path(label_root)/v).glob(f'*.png')]
                 assert len(imglist) == len(labellist)
                 imglistdict[v] = [sorted(imglist),sorted(labellist)]
             return imglistdict
