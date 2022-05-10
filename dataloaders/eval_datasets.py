@@ -135,7 +135,7 @@ class YOUTUBEVOS_Test(object):
         self.transform = transform
         self.seq_list_file = os.path.join(self.db_root_dir, 'meta.json')
         self._check_preprocess()
-        self.seqs = list(self.ann_f.keys())
+        self.seqs = sorted(list(self.ann_f.keys()))
         self.image_root = os.path.join(root, 'JPEGImages')
         self.label_root = os.path.join(root, 'Annotations')
 

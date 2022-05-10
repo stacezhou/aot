@@ -325,6 +325,20 @@ class Evaluator(object):
                     if frame_idx > 0:
                         all_preds = torch.cat(all_preds, dim=0)
                         pred_prob = torch.mean(all_preds, dim=0, keepdim=True)
+                        ##############
+                        def ensemble(send, pipe, meta):
+                            import mmcv
+                            device = send.device
+                            send = torch.swapaxes(send,0,1)
+                            mmcv.dump({ meta:send.cpu().numpy()}, pipe)
+                            get = mmcv.load(pipe)
+                            get = torch.from_numpy(get).to(device)
+                            get = torch.swapaxes(get,0,1)
+                            return get
+                        from pathlib import Path
+                        if Path('/tmp/aot.pkl').exists():
+                            pred_prob = ensemble(pred_prob, '/tmp/aot.pkl', f'{seq_name}/{imgname[0]}')
+                        ##############
                         pred_label = torch.argmax(pred_prob,
                                                   dim=1,
                                                   keepdim=True).float()
