@@ -52,6 +52,7 @@ class AOTEngine(nn.Module):
 
         self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
 
+        #! aux_weight == 0 则不计算 ref 和 prev 的 loss
         grad_state = torch.no_grad if aux_weight == 0 else torch.enable_grad
         with grad_state():
             ref_aux_loss, ref_aux_mask = self.generate_loss_mask(
@@ -325,10 +326,15 @@ class AOTEngine(nn.Module):
         self.short_term_memories = self.short_term_memories_list[0]
 
         if self.frame_step - self.last_mem_step >= self.long_term_mem_gap:
+            #! TODOX 这里选择长期记忆的方法依然没有筛选机制欸
             self.update_long_term_memory(lstt_curr_memories)
             self.last_mem_step = self.frame_step
 
     def match_propogate_one_frame(self, img=None, img_embs=None):
+        """
+        img -> curr_enc_embs
+        self.AOT.LSTT_forward:  curr_enc_embs, long_term_memories, short_term_memories, pos_emb --> curr_lstt_output
+        """
         self.frame_step += 1
         if img_embs is None:
             curr_enc_embs, _ = self.encode_one_img_mask(
@@ -345,6 +351,7 @@ class AOTEngine(nn.Module):
                                                       size_2d=self.enc_size_2d)
 
     def decode_current_logits(self, output_size=None):
+        'self.AOT.decode_id_logits: curr_enc_embs,curr_lstt_output -> pred_id_logits'
         curr_enc_embs = self.curr_enc_embs
         curr_lstt_embs = self.curr_lstt_output[0]
 
@@ -410,6 +417,7 @@ class AOTEngine(nn.Module):
         return total_loss
 
     def generate_loss_mask(self, gt_mask, step, return_prob=False):
+        'curr_enc_embs,curr_lstt_output -> pred_id_logits -> loss & mask'
         self.decode_current_logits()
         loss = self.calculate_current_loss(gt_mask, step)
         if return_prob:

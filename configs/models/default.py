@@ -9,6 +9,7 @@ class DefaultModelConfig():
         self.MODEL_ENCODER_PRETRAIN = './pretrain_models/mobilenet_v2-b0353104.pth'  # https://download.pytorch.org/models/mobilenet_v2-b0353104.pth
         self.MODEL_ENCODER_DIM = [24, 32, 96, 1280]  # 4x, 8x, 16x, 16x
         self.MODEL_ENCODER_EMBEDDING_DIM = 256
+        #? 
         self.MODEL_DECODER_INTERMEDIATE_LSTT = True
         self.MODEL_FREEZE_BN = True
         self.MODEL_FREEZE_BACKBONE = False
