@@ -74,7 +74,7 @@ class AOTEngine(nn.Module):
             curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
                 self.offline_masks[self.frame_step], step, return_prob=True)
             self.update_short_term_memory(
-                curr_mask if not use_prev_prob else curr_prob,
+                curr_mask if not use_prev_prob else curr_prob, # use_prev_prob 始终是 False
                 None if use_prev_pred else self.assign_identity(
                     self.offline_one_hot_masks[self.frame_step]))
             curr_losses.append(curr_loss)
@@ -368,6 +368,7 @@ class AOTEngine(nn.Module):
                 1e+10 if pred_id_logits.dtype == torch.float32 else -1e+4
 
         self.pred_id_logits = pred_id_logits
+        # TODOX 计算 loss , 存在 argmax 歧义问题
 
         if output_size is not None:
             pred_id_logits = F.interpolate(pred_id_logits,
@@ -386,6 +387,8 @@ class AOTEngine(nn.Module):
                                        mode="bilinear",
                                        align_corners=self.align_corners)
         pred_mask = torch.argmax(pred_id_logits, dim=1)
+        # TODOX 这里简单的 argmax / softmax 存在歧义性, 另外，训练时用到的是 pred_mask 而不是 pred_prob
+        #! 所以训练时， 梯度不会继续回传到上一帧
 
         if not return_prob:
             return pred_mask

@@ -390,7 +390,7 @@ class Trainer(object):
                 if step >= start_seq_training_step:
                     #! 超过某个阶段后，使用 prev_pred, 并冻结部分参数
                     use_prev_pred = True
-                    freeze_params = cfg.TRAIN_SEQ_TRAINING_FREEZE_PARAMS
+                    freeze_params = cfg.TRAIN_SEQ_TRAINING_FREEZE_PARAMS # patch_wise_id_bank
                 else:
                     use_prev_pred = False
                     freeze_params = []
