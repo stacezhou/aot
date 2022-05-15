@@ -52,6 +52,7 @@ class AOTEngine(nn.Module):
 
         self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
 
+        #! aux_weight == 0 则不计算 ref 和 prev 的 loss
         grad_state = torch.no_grad if aux_weight == 0 else torch.enable_grad
         with grad_state():
             ref_aux_loss, ref_aux_mask = self.generate_loss_mask(
@@ -73,7 +74,7 @@ class AOTEngine(nn.Module):
             curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
                 self.offline_masks[self.frame_step], step, return_prob=True)
             self.update_short_term_memory(
-                curr_mask if not use_prev_prob else curr_prob,
+                curr_mask if not use_prev_prob else curr_prob, # use_prev_prob 始终是 False
                 None if use_prev_pred else self.assign_identity(
                     self.offline_one_hot_masks[self.frame_step]))
             curr_losses.append(curr_loss)
@@ -325,10 +326,15 @@ class AOTEngine(nn.Module):
         self.short_term_memories = self.short_term_memories_list[0]
 
         if self.frame_step - self.last_mem_step >= self.long_term_mem_gap:
+            #! TODOX 这里选择长期记忆的方法依然没有筛选机制欸
             self.update_long_term_memory(lstt_curr_memories)
             self.last_mem_step = self.frame_step
 
     def match_propogate_one_frame(self, img=None, img_embs=None):
+        """
+        img -> curr_enc_embs
+        self.AOT.LSTT_forward:  curr_enc_embs, long_term_memories, short_term_memories, pos_emb --> curr_lstt_output
+        """
         self.frame_step += 1
         if img_embs is None:
             curr_enc_embs, _ = self.encode_one_img_mask(
@@ -345,6 +351,7 @@ class AOTEngine(nn.Module):
                                                       size_2d=self.enc_size_2d)
 
     def decode_current_logits(self, output_size=None):
+        'self.AOT.decode_id_logits: curr_enc_embs,curr_lstt_output -> pred_id_logits'
         curr_enc_embs = self.curr_enc_embs
         curr_lstt_embs = self.curr_lstt_output[0]
 
@@ -361,6 +368,7 @@ class AOTEngine(nn.Module):
                 1e+10 if pred_id_logits.dtype == torch.float32 else -1e+4
 
         self.pred_id_logits = pred_id_logits
+        # TODOX 计算 loss , 存在 argmax 歧义问题
 
         if output_size is not None:
             pred_id_logits = F.interpolate(pred_id_logits,
@@ -379,6 +387,8 @@ class AOTEngine(nn.Module):
                                        mode="bilinear",
                                        align_corners=self.align_corners)
         pred_mask = torch.argmax(pred_id_logits, dim=1)
+        # TODOX 这里简单的 argmax / softmax 存在歧义性, 另外，训练时用到的是 pred_mask 而不是 pred_prob
+        #! 所以训练时， 梯度不会继续回传到上一帧
 
         if not return_prob:
             return pred_mask
@@ -410,6 +420,7 @@ class AOTEngine(nn.Module):
         return total_loss
 
     def generate_loss_mask(self, gt_mask, step, return_prob=False):
+        'curr_enc_embs,curr_lstt_output -> pred_id_logits -> loss & mask'
         self.decode_current_logits()
         loss = self.calculate_current_loss(gt_mask, step)
         if return_prob:

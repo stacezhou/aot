@@ -117,6 +117,7 @@ class Resize(object):
 
 class BalancedRandomCrop(object):
     """Crop randomly the image in a sample.
+    确保每个 sample objs 数不超过 max_obj_num 且每个 obj 最少有 min_obj_pixel_num 个像素
 
     Args:
         output_size (tuple or int): Desired output size. If int, square crop

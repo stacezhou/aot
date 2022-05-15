@@ -45,6 +45,7 @@ class Trainer(object):
 
         self.model = build_vos_model(cfg.MODEL_VOS, cfg).cuda(self.gpu)
         self.model_encoder = self.model.encoder
+        #! engine 包装了 model
         self.engine = build_engine(
             cfg.MODEL_ENGINE,
             'train',
@@ -53,6 +54,7 @@ class Trainer(object):
             long_term_mem_gap=cfg.TRAIN_LONG_TERM_MEM_GAP)
 
         if cfg.MODEL_FREEZE_BACKBONE:
+            #! 冻结backbone参数
             for param in self.model_encoder.parameters():
                 param.requires_grad = False
 
@@ -342,11 +344,12 @@ class Trainer(object):
         else:
             frame_names = ['Ref(Prev)']
 
-        for i in range(cfg.DATA_SEQ_LEN - 1):
+        for i in range(cfg.DATA_SEQ_LEN - 1): #! AOT 默认用了 5 帧（包括 ref）来训练
             frame_names.append('Curr{}'.format(i + 1))
 
         seq_len = len(frame_names)
 
+        #region
         running_losses = []
         running_ious = []
         for _ in range(seq_len):
@@ -362,6 +365,7 @@ class Trainer(object):
         step = self.step
         epoch = self.epoch
         max_itr = cfg.TRAIN_TOTAL_STEPS
+        #endregion
         start_seq_training_step = int(cfg.TRAIN_SEQ_TRAINING_START_RATIO *
                                       max_itr)
         use_prev_prob = cfg.MODEL_USE_PREV_PROB
@@ -373,6 +377,7 @@ class Trainer(object):
             epoch += 1
             last_time = time.time()
             for frame_idx, sample in enumerate(train_loader):
+                #region
                 if step > cfg.TRAIN_TOTAL_STEPS:
                     break
 
@@ -381,14 +386,17 @@ class Trainer(object):
                 else:
                     tf_board = False
 
+                #endregion
                 if step >= start_seq_training_step:
+                    #! 超过某个阶段后，使用 prev_pred, 并冻结部分参数
                     use_prev_pred = True
-                    freeze_params = cfg.TRAIN_SEQ_TRAINING_FREEZE_PARAMS
+                    freeze_params = cfg.TRAIN_SEQ_TRAINING_FREEZE_PARAMS # patch_wise_id_bank
                 else:
                     use_prev_pred = False
                     freeze_params = []
 
                 if step % cfg.TRAIN_LR_UPDATE_STEP == 0:
+                    #! 学习率的调整 # TODOX
                     now_lr = adjust_learning_rate(
                         optimizer=optimizer,
                         base_lr=cfg.TRAIN_LR,
@@ -437,6 +445,7 @@ class Trainer(object):
                 optimizer.zero_grad(set_to_none=True)
 
                 if self.enable_amp:
+                    #region amp
                     with torch.cuda.amp.autocast(enabled=True):
 
                         loss, all_pred, all_loss, boards = model(
@@ -453,10 +462,12 @@ class Trainer(object):
 
                     self.scaler.scale(loss).backward()
                     self.scaler.unscale_(optimizer)
+                    #! 有 grad_clip
                     torch.nn.utils.clip_grad_norm_(model.parameters(),
                                                    cfg.TRAIN_CLIP_GRAD_NORM)
                     self.scaler.step(optimizer)
                     self.scaler.update()
+                    #endregion
                 else:
                     loss, all_pred, all_loss, boards = model(
                         all_frames,
@@ -475,6 +486,7 @@ class Trainer(object):
                     loss.backward()
                     optimizer.step()
 
+                #region log
                 for idx in range(seq_len):
                     now_pred = all_pred[idx].detach()
                     now_label = all_labels[idx * bs:(idx + 1) * bs].detach()
@@ -488,10 +500,13 @@ class Trainer(object):
                     if self.rank == 0:
                         running_losses[idx].update(now_loss.item())
                         running_ious[idx].update(now_iou.item())
+                #endregion
 
                 if self.rank == 0:
+                    #! ema 参数？
                     self.ema.update(self.ema_params)
 
+                    #region log
                     avg_obj.update(sum(obj_nums) / float(len(obj_nums)))
                     curr_time = time.time()
                     batch_time.update(curr_time - last_time)
@@ -521,9 +536,12 @@ class Trainer(object):
                             running_ious[idx].reset()
 
                         self.print_log(strs)
+                    #endregion
 
                 step += 1
 
+
+                #region save model
                 if step % cfg.TRAIN_SAVE_STEP == 0 and self.rank == 0:
                     max_mem = torch.cuda.max_memory_allocated(
                         device=self.gpu) / (1024.**3)
@@ -559,6 +577,7 @@ class Trainer(object):
                     except Exception as inst:
                         self.print_log(inst)
                         self.print_log('Error: failed to save EMA model!')
+                #endregion
 
         self.print_log('Stop training!')
 

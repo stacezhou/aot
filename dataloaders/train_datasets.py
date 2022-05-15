@@ -397,6 +397,7 @@ class VOSTrain(Dataset):
             try_step += 1
 
             # generate random gaps
+            #! seq_len - 1 个 gap 
             curr_gaps, total_gap = self.get_curr_gaps(self.seq_len - 1)
 
             if self.enable_prev_frame:  # prev frame is randomly sampled
