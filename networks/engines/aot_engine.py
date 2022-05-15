@@ -14,6 +14,7 @@ from networks.layers.basic import seq_to_2d
 class AOTEngine(nn.Module):
     def __init__(self,
                  aot_model,
+                #  stcn_model,
                  gpu_id=0,
                  long_term_mem_gap=9999,
                  short_term_mem_skip=1):
@@ -22,6 +23,7 @@ class AOTEngine(nn.Module):
         self.cfg = aot_model.cfg
         self.align_corners = aot_model.cfg.MODEL_ALIGN_CORNERS
         self.AOT = aot_model
+        # self.STCN = stcn_model
 
         self.max_obj_num = aot_model.max_obj_num
         self.gpu_id = gpu_id
@@ -48,62 +50,45 @@ class AOTEngine(nn.Module):
         aux_weight = self.aux_weight * max(self.aux_step - step,
                                            0.) / self.aux_step
 
-        self.offline_encoder(all_frames, all_masks)
 
         self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
-
         grad_state = torch.no_grad if aux_weight == 0 else torch.enable_grad
-        with grad_state():
-            ref_aux_loss, ref_aux_mask = self.generate_loss_mask(
-                self.offline_masks[self.frame_step], step)
-
-        aux_losses = [ref_aux_loss]
-        aux_masks = [ref_aux_mask]
+        self.offline_encoder(all_frames, all_masks)
 
         curr_losses, curr_masks = [], []
-        if enable_prev_frame:
-            self.set_prev_frame(frame_step=1)
-            with grad_state():
-                prev_aux_loss, prev_aux_mask = self.generate_loss_mask(
-                    self.offline_masks[self.frame_step], step)
-            aux_losses.append(prev_aux_loss)
-            aux_masks.append(prev_aux_mask)
-        else:
-            self.match_propogate_one_frame()
-            curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
-                self.offline_masks[self.frame_step], step, return_prob=True)
-            self.update_short_term_memory(
-                curr_mask if not use_prev_prob else curr_prob,
-                None if use_prev_pred else self.assign_identity(
-                    self.offline_one_hot_masks[self.frame_step]))
-            curr_losses.append(curr_loss)
-            curr_masks.append(curr_mask)
-
-        self.match_propogate_one_frame()
-        curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
-            self.offline_masks[self.frame_step], step, return_prob=True)
-        curr_losses.append(curr_loss)
-        curr_masks.append(curr_mask)
-        for _ in range(self.total_offline_frame_num - 3):
-            self.update_short_term_memory(
-                curr_mask if not use_prev_prob else curr_prob,
-                None if use_prev_pred else self.assign_identity(
-                    self.offline_one_hot_masks[self.frame_step]))
-            self.match_propogate_one_frame()
-            curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
-                self.offline_masks[self.frame_step], step, return_prob=True)
-            curr_losses.append(curr_loss)
-            curr_masks.append(curr_mask)
+        aux_losses,aux_masks = [], []
+        for i in range(self.total_offline_frame_num):
+            if i == 0:
+                self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
+                #! aux_weight == 0 则不计算 ref 和 prev 的 loss
+                with grad_state():
+                    ref_aux_loss, ref_aux_mask = self.generate_loss_mask(
+                        self.offline_masks[self.frame_step], step)
+                aux_losses.append(ref_aux_loss)
+                aux_masks.append(ref_aux_mask)
+            # elif i == 1 and enable_prev_frame:
+            #     self.set_prev_frame(frame_step=1)
+            #     with grad_state():
+            #         prev_aux_loss, prev_aux_mask = self.generate_loss_mask(
+            #             self.offline_masks[self.frame_step], step)
+            #     aux_losses.append(prev_aux_loss)
+            #     aux_masks.append(prev_aux_mask)
+            else:
+                self.match_propogate_one_frame()
+                curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
+                    self.offline_masks[self.frame_step], step, return_prob=True)
+                self.update_short_term_memory(
+                    curr_mask if not use_prev_prob else curr_prob,
+                    None if use_prev_pred else self.assign_identity(
+                        self.offline_one_hot_masks[self.frame_step]))
+                curr_losses.append(curr_loss)
+                curr_masks.append(curr_mask)
 
         aux_loss = torch.cat(aux_losses, dim=0).mean(dim=0)
         pred_loss = torch.cat(curr_losses, dim=0).mean(dim=0)
-
         loss = aux_weight * aux_loss + pred_loss
-
         all_pred_mask = aux_masks + curr_masks
-
         all_frame_loss = aux_losses + curr_losses
-
         boards = {'image': {}, 'scalar': {}} # type:Dict[str,Dict[str,List]]
 
         return loss, all_pred_mask, all_frame_loss, boards
@@ -411,6 +396,7 @@ class AOTEngine(nn.Module):
 
     def generate_loss_mask(self, gt_mask, step, return_prob=False):
         self.decode_current_logits()
+        #! ensemble STCN train
         loss = self.calculate_current_loss(gt_mask, step)
         if return_prob:
             mask, prob = self.predict_current_mask(return_prob=True)
