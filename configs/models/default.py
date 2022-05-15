@@ -4,7 +4,7 @@ class DefaultModelConfig():
 
         self.MODEL_VOS = 'aot'
         self.MODEL_ENGINE = 'aotengine'
-        self.MODEL_ALIGN_CORNERS = True
+        self.MODEL_ALIGN_CORNERS = False
         self.MODEL_ENCODER = 'mobilenetv2'
         self.MODEL_ENCODER_PRETRAIN = './pretrain_models/mobilenet_v2-b0353104.pth'  # https://download.pytorch.org/models/mobilenet_v2-b0353104.pth
         self.MODEL_ENCODER_DIM = [24, 32, 96, 1280]  # 4x, 8x, 16x, 16x

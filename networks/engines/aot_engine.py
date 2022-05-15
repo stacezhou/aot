@@ -14,7 +14,7 @@ from networks.layers.basic import seq_to_2d
 class AOTEngine(nn.Module):
     def __init__(self,
                  aot_model,
-                #  stcn_model,
+                 stcn_model,
                  gpu_id=0,
                  long_term_mem_gap=9999,
                  short_term_mem_skip=1):
@@ -23,7 +23,7 @@ class AOTEngine(nn.Module):
         self.cfg = aot_model.cfg
         self.align_corners = aot_model.cfg.MODEL_ALIGN_CORNERS
         self.AOT = aot_model
-        # self.STCN = stcn_model
+        self.STCN = stcn_model
 
         self.max_obj_num = aot_model.max_obj_num
         self.gpu_id = gpu_id
@@ -53,34 +53,81 @@ class AOTEngine(nn.Module):
         grad_state = torch.no_grad if aux_weight == 0 else torch.enable_grad
         self.offline_encoder(all_frames, all_masks)
 
+        # B,T,C,H,W
+        Fs = all_frames.view((5,self.batch_size,*all_frames.shape[1:])).swapaxes(0,1)
+        Ms = all_masks.view((5,self.batch_size,*all_masks.shape[1:])).swapaxes(0,1)
+        k16, kf16_thin, kf16, kf8, kf4 = self.STCN('encode_key', Fs)
+
         curr_losses, curr_masks = [], []
         aux_losses,aux_masks = [], []
         for i in range(self.total_offline_frame_num):
             if i == 0:
+                ## AOT part
                 self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
                 #! aux_weight == 0 则不计算 ref 和 prev 的 loss
                 with grad_state():
+                    self.stcn_pred_logits = 0  # STCN part
                     ref_aux_loss, ref_aux_mask = self.generate_loss_mask(
                         self.offline_masks[self.frame_step], step)
                 aux_losses.append(ref_aux_loss)
                 aux_masks.append(ref_aux_mask)
-            # elif i == 1 and enable_prev_frame:
-            #     self.set_prev_frame(frame_step=1)
-            #     with grad_state():
-            #         prev_aux_loss, prev_aux_mask = self.generate_loss_mask(
-            #             self.offline_masks[self.frame_step], step)
-            #     aux_losses.append(prev_aux_loss)
-            #     aux_masks.append(prev_aux_mask)
+                
+                ## STCN part
+                obj_list = [
+                    (bi, oi) 
+                    for bi in range(self.batch_size) 
+                    for oi in Ms[:,bi].unique().tolist()
+                    if oi != 0
+                ]
+                self.obj_list = obj_list
+                stcn_memory_vs = [
+                    self.STCN('encode_value', Fs[b:b+1,i], kf16[b:b+1,i], Ms[b:b+1,i] == l)
+                    for b,l in obj_list
+                ]
+
             else:
+                ## AOT part forward
                 self.match_propogate_one_frame()
-                curr_loss, curr_mask, curr_prob = self.generate_loss_mask(
-                    self.offline_masks[self.frame_step], step, return_prob=True)
+
+                ## STCN part forward
+                stcn_logits_masks = [
+                    self.STCN('segment', k16[b:b+1,:,i], kf16_thin[b:b+1,i], 
+                            kf8[b:b+1,i], kf4[b:b+1,i],k16[b:b+1,:,0:i], stcn_memory_vs[j])
+                    for j,(b,l) in enumerate(obj_list)
+                ]
+
+                stcn_logits, _  = list(zip(*stcn_logits_masks))
+                # stack logits which are in same frame
+                stcn_logits_batch = [[] for b in range(self.batch_size)]
+                for (b,l),logits in zip(obj_list, stcn_logits):
+                    stcn_logits_batch[b].append(logits[:,1])
+                stcn_logits_batch = [
+                    torch.stack(logits,dim=0)
+                    for logits in stcn_logits_batch
+                ]
+                self.stcn_pred_logits = stcn_logits_batch
+
+                ## compute loss by AOT
+                curr_loss, curr_mask, curr_prob = self.generate_loss_mask( self.offline_masks[self.frame_step], step, return_prob=True)
+
                 self.update_short_term_memory(
                     curr_mask if not use_prev_prob else curr_prob,
                     None if use_prev_pred else self.assign_identity(
                         self.offline_one_hot_masks[self.frame_step]))
                 curr_losses.append(curr_loss)
                 curr_masks.append(curr_mask)
+
+                stcn_curr_masks = [
+                    curr_mask[b:b+1] == l
+                    for b,l in obj_list
+                ]
+                stcn_memory_vs = [
+                    torch.cat([
+                        stcn_memory_vs[j], 
+                        self.STCN('encode_value', Fs[b:b+1,i], kf16[b:b+1,i], stcn_curr_masks[j].unsqueeze(0))
+                    ],dim=2)
+                    for j,(b,l) in enumerate(obj_list)
+                ]
 
         aux_loss = torch.cat(aux_losses, dim=0).mean(dim=0)
         pred_loss = torch.cat(curr_losses, dim=0).mean(dim=0)
@@ -405,6 +452,14 @@ class AOTEngine(nn.Module):
         'curr_enc_embs,curr_lstt_output -> pred_id_logits -> loss & mask'
         self.decode_current_logits()
         #! ensemble STCN train
+        if isinstance(self.stcn_pred_logits, list):
+            for i in range(self.batch_size):
+                stcn_logits = self.stcn_pred_logits[i]
+                stcn_logits = F.interpolate(stcn_logits, size=self.pred_id_logits.shape[-2:],
+                        mode='bilinear',align_corners=True)
+                self.pred_id_logits[i,1:stcn_logits.shape[0]+1] += stcn_logits[:,0]
+                self.pred_id_logits[i,1:stcn_logits.shape[0]+1] /= 2
+
         loss = self.calculate_current_loss(gt_mask, step)
         if return_prob:
             mask, prob = self.predict_current_mask(return_prob=True)

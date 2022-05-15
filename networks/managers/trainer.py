@@ -23,7 +23,7 @@ from utils.ema import ExponentialMovingAverage, get_param_buffer_for_ema
 
 from networks.models import build_vos_model
 from networks.engines import build_engine
-
+from model.network import STCN
 
 class Trainer(object):
     def __init__(self, rank, cfg, enable_amp=True):
@@ -50,6 +50,7 @@ class Trainer(object):
             cfg.MODEL_ENGINE,
             'train',
             aot_model=self.model,
+            stcn_model=STCN(single_object=True).cuda(),
             gpu_id=self.gpu,
             long_term_mem_gap=cfg.TRAIN_LONG_TERM_MEM_GAP)
 
