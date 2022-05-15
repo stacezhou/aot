@@ -51,7 +51,6 @@ class AOTEngine(nn.Module):
                                            0.) / self.aux_step
 
 
-        self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
         grad_state = torch.no_grad if aux_weight == 0 else torch.enable_grad
         self.offline_encoder(all_frames, all_masks)
 
