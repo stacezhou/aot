@@ -46,6 +46,7 @@ class AOT(nn.Module):
             decode_intermediate_input=cfg.MODEL_DECODER_INTERMEDIATE_LSTT,
             hidden_dim=cfg.MODEL_ENCODER_EMBEDDING_DIM,
             shortcut_dims=cfg.MODEL_ENCODER_DIM,
+            pa_pretrained = cfg.PA_PRETRAIN,
             align_corners=cfg.MODEL_ALIGN_CORNERS)
 
         if cfg.MODEL_ALIGN_CORNERS:

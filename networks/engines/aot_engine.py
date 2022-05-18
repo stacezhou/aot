@@ -49,6 +49,7 @@ class AOTEngine(nn.Module):
                                            0.) / self.aux_step
 
         self.offline_encoder(all_frames, all_masks)
+        self.all_frames = all_frames
 
         self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
 
