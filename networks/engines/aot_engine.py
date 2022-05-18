@@ -348,9 +348,13 @@ class AOTEngine(nn.Module):
     def decode_current_logits(self, output_size=None):
         curr_enc_embs = self.curr_enc_embs
         curr_lstt_embs = self.curr_lstt_output[0]
+        i = self.batch_size * self.frame_step
+        imgs = self.all_frames[i:i+self.batch_size]
 
         pred_id_logits = self.AOT.decode_id_logits(curr_lstt_embs,
-                                                   curr_enc_embs)
+                                                   curr_enc_embs,
+                                                   imgs = imgs,
+                                                   )
 
         if self.enable_id_shuffle:  # reverse shuffle
             pred_id_logits = torch.einsum('bohw,bto->bthw', pred_id_logits,

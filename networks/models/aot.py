@@ -46,6 +46,7 @@ class AOT(nn.Module):
             decode_intermediate_input=cfg.MODEL_DECODER_INTERMEDIATE_LSTT,
             hidden_dim=cfg.MODEL_ENCODER_EMBEDDING_DIM,
             shortcut_dims=cfg.MODEL_ENCODER_DIM,
+            with_pa = cfg.WITH_PA,
             pa_pretrained = cfg.PA_PRETRAIN,
             align_corners=cfg.MODEL_ALIGN_CORNERS)
 
@@ -85,12 +86,12 @@ class AOT(nn.Module):
         xs[-1] = self.encoder_projector(xs[-1])
         return xs
 
-    def decode_id_logits(self, lstt_emb, shortcuts):
+    def decode_id_logits(self, lstt_emb, shortcuts, imgs = None):
         n, c, h, w = shortcuts[-1].size()
         decoder_inputs = [shortcuts[-1]]
         for emb in lstt_emb:
             decoder_inputs.append(emb.view(h, w, n, c).permute(2, 3, 0, 1))
-        pred_logit = self.decoder(decoder_inputs, shortcuts)
+        pred_logit = self.decoder(decoder_inputs, shortcuts, imgs)
         return pred_logit
 
     def LSTT_forward(self,
