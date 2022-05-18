@@ -302,6 +302,10 @@ class AOTEngine(nn.Module):
         self.long_term_memories = updated_long_term_memories
 
     def update_short_term_memory(self, curr_mask, curr_id_emb=None):
+        '''
+        in the begining training stage, use gt mask to make curr_id_emb
+        after that, use curr_mask to make curr_id_emb
+        '''
         if curr_id_emb is None:
             if len(curr_mask.size()) == 3 or curr_mask.size()[0] == 1:
                 curr_one_hot_mask = one_hot_mask(curr_mask, self.max_obj_num)
