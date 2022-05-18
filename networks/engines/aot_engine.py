@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
-from typing import Dict,List
+from typing import Dict, List
 
 from utils.math import generate_permute_matrix
 from utils.image import one_hot_mask
@@ -12,6 +12,7 @@ from networks.layers.basic import seq_to_2d
 
 
 class AOTEngine(nn.Module):
+
     def __init__(self,
                  aot_model,
                  gpu_id=0,
@@ -105,7 +106,7 @@ class AOTEngine(nn.Module):
 
         all_frame_loss = aux_losses + curr_losses
 
-        boards = {'image': {}, 'scalar': {}} # type:Dict[str,Dict[str,List]]
+        boards = {'image': {}, 'scalar': {}}  # type:Dict[str,Dict[str,List]]
 
         return loss, all_pred_mask, all_frame_loss, boards
 
@@ -485,6 +486,7 @@ class AOTEngine(nn.Module):
 
 
 class AOTInferEngine(nn.Module):
+
     def __init__(self,
                  aot_model,
                  gpu_id=0,

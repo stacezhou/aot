@@ -99,6 +99,10 @@ class AOT(nn.Module):
                      curr_id_emb=None,
                      pos_emb=None,
                      size_2d=(30, 30)):
+        """
+        when add_reference_frame or set_prev_frame, long/short_term_memories is None
+        when match_propogate_one_frame, curr_id_emb is None
+        """
         n, c, h, w = curr_embs[-1].size()
         curr_emb = curr_embs[-1].view(n, c, h * w).permute(2, 0, 1)
         lstt_embs, lstt_memories = self.LSTT(curr_emb, long_term_memories,

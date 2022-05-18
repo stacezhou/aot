@@ -1,7 +1,6 @@
 import torch.nn.functional as F
 from torch import nn
 
-
 from networks.layers.basic import DropPath, GroupNorm1D, GNActDWConv2d, seq_to_2d
 from networks.layers.attention import MultiheadAttention, MultiheadLocalAttentionV2, MultiheadLocalAttentionV3
 
@@ -26,6 +25,7 @@ def _get_activation_fn(activation):
 
 
 class LongShortTermTransformer(nn.Module):
+
     def __init__(self,
                  num_layers=2,
                  d_model=256,
@@ -41,7 +41,7 @@ class LongShortTermTransformer(nn.Module):
                  activation="gelu",
                  return_intermediate=False,
                  intermediate_norm=True,
-                 use_lstt_v2 = False,
+                 use_lstt_v2=False,
                  final_norm=True):
 
         super().__init__()
@@ -62,10 +62,16 @@ class LongShortTermTransformer(nn.Module):
             else:
                 droppath_rate = droppath
             layers.append(
-                LongShortTermTransformerBlock(d_model, self_nhead, att_nhead,
-                                              dim_feedforward, droppath_rate,
-                                              lt_dropout, st_dropout,
-                                              droppath_lst, activation,use_lstt_v2=use_lstt_v2))
+                LongShortTermTransformerBlock(d_model,
+                                              self_nhead,
+                                              att_nhead,
+                                              dim_feedforward,
+                                              droppath_rate,
+                                              lt_dropout,
+                                              st_dropout,
+                                              droppath_lst,
+                                              activation,
+                                              use_lstt_v2=use_lstt_v2))
         self.layers = nn.ModuleList(layers)
 
         num_norms = num_layers - 1 if intermediate_norm else 0
@@ -125,6 +131,7 @@ class LongShortTermTransformer(nn.Module):
 
 
 class LongShortTermTransformerBlock(nn.Module):
+
     def __init__(self,
                  d_model,
                  self_nhead,
@@ -136,7 +143,7 @@ class LongShortTermTransformerBlock(nn.Module):
                  droppath_lst=False,
                  activation="gelu",
                  local_dilation=1,
-                 use_lstt_v2 = False,
+                 use_lstt_v2=False,
                  enable_corr=True):
         super().__init__()
 
@@ -216,14 +223,15 @@ class LongShortTermTransformerBlock(nn.Module):
         curr_V = _tgt
 
         local_Q = seq_to_2d(curr_Q, size_2d)
-        
-        if curr_id_emb is None: # HW,B,C
+
+        if curr_id_emb is None:  # HW,B,C
             global_K, global_V = long_term_memory
             local_K, local_V = short_term_memory
         elif self.use_lstt_v2:
-            gate = 1 + F.tanh(self.gating_linear(curr_id_emb)) # HW,B,1
+            gate = 1 + F.tanh(self.gating_linear(curr_id_emb))  # HW,B,1
             global_K = curr_K * gate.expand(curr_K.shape)
-            global_V = self.linear_V(curr_V + self.identify_linear(curr_id_emb))
+            global_V = self.linear_V(curr_V +
+                                     self.identify_linear(curr_id_emb))
             local_K = seq_to_2d(global_K, size_2d)
             local_V = seq_to_2d(global_V, size_2d)
         else:
@@ -231,7 +239,6 @@ class LongShortTermTransformerBlock(nn.Module):
             global_V = self.linear_V(curr_V + curr_id_emb)
             local_K = seq_to_2d(global_K, size_2d)
             local_V = seq_to_2d(global_V, size_2d)
-
 
         tgt2 = self.long_term_attn(curr_Q, global_K, global_V)[0]
         tgt3 = self.short_term_attn(local_Q, local_K, local_V)[0]
