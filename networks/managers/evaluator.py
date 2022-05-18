@@ -19,6 +19,9 @@ from utils.eval import zip_folder
 from networks.models import build_vos_model
 from networks.engines import build_engine
 
+from mmdet.models import build_detector
+from mmcv.runner import load_checkpoint
+from mmcv.utils import Config
 
 class Evaluator(object):
     def __init__(self, cfg, rank=0, seq_queue=None, info_queue=None):
@@ -37,6 +40,10 @@ class Evaluator(object):
 
         self.print_log('Build VOS model.')
         self.model = build_vos_model(cfg.MODEL_VOS, cfg).cuda(self.gpu)
+        ggn = '/home/zh21/code/Generic-Grouping/configs/mask_rcnn/class_agn_mask_rcnn.py'
+        self.ggn = build_detector(Config.fromfile(ggn).model).cuda(self.gpu)
+        ggn_ckpt = '/home/zh21/code/ggn_coco.pth'
+        load_checkpoint(self.ggn, ggn_ckpt)
 
         self.process_pretrained_model()
 
@@ -491,3 +498,29 @@ class Evaluator(object):
     def print_log(self, string):
         if self.rank == 0:
             print(string)
+
+    def ggn_mask(self, img):
+        img_meta = dict()
+        B, C, H, W = img.shape
+        img_meta['ori_shape'] = (H, W, C)
+        img_meta['pad_shape'] = (H, W, C)
+        img_meta['img_shape'] = (H, W, C)
+        img_meta['batch_input_shape'] = (H, W)
+        img_meta['scale_factor'] = np.array([1., 1., 1., 1.], dtype=np.float32)
+        img_meta['flip'] = False
+        img_metas = [img_meta]
+
+        # proposal_list = [tensor.Size([N, 5])] x1,y1,x2,y2,p
+        proposals = None
+        x = self.extract_feat(img)
+
+        if proposals is None:
+            proposal_list = self.rpn_head.simple_test_rpn(x, img_metas)
+        else:
+            proposal_list = proposals
+
+        result = self.roi_head.simple_test(x,
+                                           proposal_list,
+                                           img_metas,
+                                           rescale=False)
+        return result
