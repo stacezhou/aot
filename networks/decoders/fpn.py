@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from networks.layers.basic import ConvGN
+from .pa_module import PA_module
+from mmcv.runner import load_checkpoint
 
 
 class FPNSegmentationHead(nn.Module):
@@ -11,6 +13,7 @@ class FPNSegmentationHead(nn.Module):
                  decode_intermediate_input=True,
                  hidden_dim=256,
                  shortcut_dims=[24, 32, 96, 1280],
+                 pa_pretrained = None,
                  align_corners=True):
         super().__init__()
         self.align_corners = align_corners
@@ -30,6 +33,9 @@ class FPNSegmentationHead(nn.Module):
         self.conv_out = nn.Conv2d(hidden_dim // 2, out_dim, 1)
 
         self._init_weight()
+        self.pa = PA_module()
+        if pa_pretrained is not None:
+            load_checkpoint(self.pa, pa_pretrained)
 
     def forward(self, inputs, shortcuts):
 

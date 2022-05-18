@@ -52,6 +52,7 @@ class AOTEngine(nn.Module):
 
         grad_state = torch.no_grad if aux_weight == 0 else torch.enable_grad
         self.offline_encoder(all_frames, all_masks)
+        self.all_frames = all_frames
 
         # B,T,C,H,W
         Fs = all_frames.view((5,self.batch_size,*all_frames.shape[1:])).swapaxes(0,1)

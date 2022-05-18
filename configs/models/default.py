@@ -19,6 +19,7 @@ class DefaultModelConfig():
         self.MODEL_LSTT_NUM = 1
         self.MODEL_EPSILON = 1e-5
         self.MODEL_USE_PREV_PROB = False
+        self.PA_PRETRAIN = '/home/zh21/code/pa_coco.pth'
 
         self.TRAIN_LONG_TERM_MEM_GAP = 9999
 
