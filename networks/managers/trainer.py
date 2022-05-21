@@ -251,6 +251,17 @@ class Trainer(object):
                 max_obj_n=cfg.MODEL_MAX_OBJ_NUM)
             train_datasets.append(pretrain_vos_dataset)
             self.enable_prev_frame = False
+        
+        if 'finetune' in cfg.DATASETS:
+            from dataloaders.train_datasets import FinetuneTrain
+            pretrain_vos_dataset = FinetuneTrain(
+                cfg.DIR_FINETUNE,
+                cfg.DATA_RANDOMCROP,
+                seq_len=cfg.DATA_SEQ_LEN,
+                merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
+                max_obj_n=cfg.MODEL_MAX_OBJ_NUM)
+            train_datasets.append(pretrain_vos_dataset)
+            self.enable_prev_frame = False
 
         if 'davis2017' in cfg.DATASETS:
             train_davis_dataset = DAVIS2017_Train(

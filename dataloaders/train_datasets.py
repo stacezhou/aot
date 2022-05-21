@@ -230,6 +230,21 @@ class StaticTrain(Dataset):
         return _merge_sample(sample1, sample2, min_obj_pixels, self.max_obj_n)
 
 
+class FinetuneTrain(StaticTrain):
+    def __init__(self,
+                 root,
+                 output_size,
+                 seq_len=5,
+                 max_obj_n=10,
+                 dynamic_merge=True,
+                 merge_prob=1.0):
+        super().__init__(root,output_size,seq_len,max_obj_n,dynamic_merge,merge_prob)
+        from pathlib import Path
+        self.img_list = sorted([str(f) for f in Path(root).glob('*.jpg')])
+        self.mask_list = sorted([str(f) for f in Path(root).glob('*.png')])
+        assert len(self.img_list) == len(self.mask_list)
+        print(f'{len(self.img_list)} imgs are used for finetune.')
+
 class VOSTrain(Dataset):
     def __init__(self,
                  image_root,
