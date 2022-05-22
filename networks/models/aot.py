@@ -114,3 +114,64 @@ class AOT(nn.Module):
             self.patch_wise_id_bank.weight.view(
                 self.cfg.MODEL_ENCODER_EMBEDDING_DIM, -1).permute(0, 1),
             gain=17**-2 if self.cfg.MODEL_ALIGN_CORNERS else 16**-2)
+
+    def forward(self,
+                img,
+                *,
+                memories = None,
+                obj_nums = None,
+                pos_emb=None,
+                ref_imgs=None,
+                ref_masks=None,
+                trans_imgs=None,
+                output_all_frame=False,
+                output_memories=True,
+                ):
+        '''
+        给定 context 下预测当前帧的 mask 并返回相关memories
+        Args:
+        Return:
+        mask, memoris
+        '''
+        assert (ref_masks is not None ) != (memories is not None)
+        
+        # if transition_imgs is not None and transition_imgs.shape[0] > 0:
+        #     transition_mask = self(transition_imgs[0],short_memories)
+        #     new_memoris = ... # update memories by transition_mask
+        #     return self(img,new_memoris,transition_imgs=transition_imgs[1:])
+
+
+        img_emb = self.encode_image(img) if img.shape[1] == 3 else img
+        pos_emb = self.get_pos_emb(img_emb) if pos_emb is None else pos_emb
+
+        if memories is not None:
+            import torch
+            out_emb, new_memories, *_ = self.LSTT_forward(img_emb, *memories)
+            pred_id_logits = self.decode_id_logits(out_emb, img_emb)
+
+            for batch_idx, obj_num in enumerate(self.obj_nums):
+                pred_id_logits[batch_idx, (obj_num+1):] = - \
+                    1e+10 if pred_id_logits.dtype == torch.float32 else -1e+4
+            pred_mask = torch.argmax(pred_id_logits, dim=1)
+            memories = update_memories(memories, new_memories)
+            return pred_mask, memories
+
+        else:
+            from utils.image import one_hot_mask
+            ref_img_emb = self.encode_image(ref_imgs)
+            ref_one_hot_mask = one_hot_mask(ref_masks,self.max_obj_num)
+            obj_nums = ref_masks.max() - 1
+            ref_id_emb = self.get_id_emb(ref_one_hot_mask)
+            out_emb, _, *memories = self.LSTT_forward(ref_img_emb,None,None,ref_id_emb,pos_emb=pos_emb)
+            return self.forward(img_emb,
+                                memories=memories,
+                                obj_nums=obj_nums,
+                                trans_imgs=trans_imgs,
+                                pos_emb=pos_emb,
+                                output_all_frame=output_all_frame,
+                                output_memories=output_memories,
+                                )
+
+
+def update_memories(memories, new_memories):
+    pass
