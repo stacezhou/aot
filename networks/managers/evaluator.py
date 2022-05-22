@@ -260,6 +260,63 @@ class Evaluator(object):
                     all_preds = []
                     new_obj_label = None
 
+                    sample = samples[0]
+                    imgname = sample['meta']['current_name']
+                    obj_idx = sample['meta']['obj_idx']
+                    obj_nums = sample['meta']['obj_num']
+                    ori_height = sample['meta']['height']
+                    ori_width = sample['meta']['width']
+                    current_img = sample['current_img'].cuda(self.gpu,
+                                                       non_blocking=True)
+                    obj_nums = [int(obj_num) for obj_num in obj_nums]
+                    obj_idx = [int(_obj_idx) for _obj_idx in obj_idx]
+                    
+                    if 'current_label' in sample.keys():
+                        current_label = sample['current_label'].cuda(
+                            self.gpu, non_blocking=True).float()
+                        current_label = F.interpolate(current_label, current_img.shape[-2:], mode='nearest')
+                    else:
+                        current_label = None
+                    if frame_idx == 0:
+                        pred_masks, *memory = self.model(current_img, ref_masks= current_label, obj_nums=obj_nums)
+                        memories = memory
+
+                        seq_timers.append([])
+                        now_timer = torch.cuda.Event(
+                            enable_timing=True)
+                        now_timer.record()
+                        seq_timers[-1].append((now_timer))
+                    else:
+                        pred_masks, *memory = self.model(current_img, memories = memories, obj_nums=obj_nums)
+                        memories[1] = memory[1]
+                        if frame_idx % 5 == 0:
+                            memories[0] = [
+                                [ torch.cat([t1,t2], dim=0) for t1,t2 in zip(l1,l2) ]
+                                for l1,l2 in zip(memories[0],memory[0])
+                            ]
+
+                    now_timer = torch.cuda.Event(enable_timing=True)
+                    now_timer.record()
+                    seq_timers[-1].append((now_timer))
+
+                    if cfg.TEST_FRAME_LOG:
+                        torch.cuda.synchronize()
+                        one_frametime = seq_timers[-1][0].elapsed_time(
+                            seq_timers[-1][1]) / 1e3
+                        obj_num = obj_nums[0]
+                        print(
+                            'GPU {} - Frame: {} - Obj Num: {}, Time: {}ms'.
+                            format(self.gpu, imgname[0].split('.')[0],
+                                    obj_num, int(one_frametime * 1e3)))
+                    # Save result
+                    pred_label = pred_masks
+                    seq_pred_masks['dense'].append({
+                        'path': os.path.join(self.result_root, seq_name,
+                                        imgname[0].split('.')[0] + '.png'),
+                        'mask': pred_label,
+                        'obj_idx': obj_idx
+                    })
+                    continue
                     for aug_idx in range(len(samples)):
                         if len(all_engines) <= aug_idx:
                             all_engines.append(
