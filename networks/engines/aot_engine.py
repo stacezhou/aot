@@ -616,18 +616,3 @@ class AOTInferEngine(nn.Module):
         self.input_size_2d = self.aot_engines[0].input_size_2d
         self.enc_size_2d = self.aot_engines[0].enc_size_2d
         self.enc_hw = self.aot_engines[0].enc_hw
-
-
-
-class AOTNonlinearInferEngine(nn.Module):
-    
-    def __init__(self, aot_model):
-        super().__init__()
-        self.model = aot_model
-    
-    def infer(self, img, global_memories, local_memories):
-
-        return mask_prob
-    
-    def init_memory(self, img, mask, obj_nums):
-        pass
