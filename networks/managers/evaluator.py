@@ -255,7 +255,15 @@ class Evaluator(object):
                 seq_pred_masks = {'dense': [], 'sparse': []}
                 seq_timers = []
 
+                memories = None
                 for frame_idx, samples in enumerate(seq_dataloader):
+
+                    if frame_idx == 0:
+                        seq_timers.append([])
+                        now_timer = torch.cuda.Event(
+                            enable_timing=True)
+                        now_timer.record()
+                        seq_timers[-1].append((now_timer))
 
                     all_preds = []
                     new_obj_label = None
@@ -275,19 +283,17 @@ class Evaluator(object):
                         current_label = sample['current_label'].cuda(
                             self.gpu, non_blocking=True).float()
                         current_label = F.interpolate(current_label, current_img.shape[-2:], mode='nearest')
+                        obj_nums = [int(current_label.max().item())]
                     else:
                         current_label = None
-                    if frame_idx == 0:
-                        pred_masks, *memory = self.model(current_img, ref_masks= current_label, obj_nums=obj_nums)
-                        memories = memory
 
-                        seq_timers.append([])
-                        now_timer = torch.cuda.Event(
-                            enable_timing=True)
-                        now_timer.record()
-                        seq_timers[-1].append((now_timer))
+                    pred_masks, *memory = self.model(current_img, 
+                                                    memories = memories,
+                                                    ref_masks = current_label, 
+                                                    obj_nums=obj_nums)
+                    if memories is None:
+                        memories = memory 
                     else:
-                        pred_masks, *memory = self.model(current_img, memories = memories, obj_nums=obj_nums)
                         memories[1] = memory[1]
                         if frame_idx % 5 == 0:
                             memories[0] = [

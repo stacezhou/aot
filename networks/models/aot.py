@@ -120,22 +120,22 @@ class AOT(nn.Module):
     def forward(self,
                 img,
                 *,
-                memories = None,
+                memories=None,
                 ref_masks=None,
                 ori_size=None,
-                obj_nums = None,
+                obj_nums=None,
                 pos_emb=None,
-                ):
+            ):
         '''
         给定 context 下预测当前帧的 mask 并返回相关 memories
         Args:
         Return:
         mask, memoris
         '''
-        assert (ref_masks is not None ) != (memories is not None and obj_nums is not None)
-        
+        assert ref_masks is not None or memories is not None
+
         if not isinstance(img, list):
-            img_emb = self.encode_image(img) 
+            img_emb = self.encode_image(img)
             ori_size = img.shape[-2:]
         else:
             img_emb = img
@@ -143,41 +143,55 @@ class AOT(nn.Module):
 
         batch_size, *_, h,w = img_emb[-1].shape
         enc_size_2d = [h,w]
-        enc_hw = h*w
+        enc_hw = h * w
 
         if pos_emb is None:
             pos_emb = self.get_pos_emb(img_emb[-1])
-            pos_emb = pos_emb.flatten(start_dim=2).permute(2,0,1).expand(-1,batch_size,-1) # hw,B,C
+            pos_emb = pos_emb.flatten(start_dim=2).permute(2, 0, 1).expand(
+                -1, batch_size, -1)  # hw,B,C
+        meta = {'pos_emb': pos_emb, 'size_2d': enc_size_2d}
 
         if memories is not None:
-            out_emb, curr_memory, *_ = self.LSTT_forward(img_emb, *memories,size_2d=enc_size_2d)
+            out_emb, curr_memory, *_ = self.LSTT_forward(img_emb, *memories,**meta)
 
             # predict mask of current frame
             pred_id_logits = self.decode_id_logits(out_emb, img_emb)
             for batch_idx, obj_num in enumerate(obj_nums):
                 pred_id_logits[batch_idx, (obj_num+1):] = - \
                     1e+10 if pred_id_logits.dtype == torch.float32 else -1e+4
-            pred_id_logits = F.interpolate(pred_id_logits, ori_size, mode='bilinear',align_corners=True)
+            pred_id_logits = F.interpolate(pred_id_logits,
+                                           ori_size,
+                                           mode='bilinear',
+                                           align_corners=True)
             pred_mask = torch.argmax(pred_id_logits, dim=1)
 
             # generate long and short memory of current frame
             pred_one_hot_mask = one_hot_mask(pred_mask, self.max_obj_num)
-            pred_id_emb = self.get_id_emb(pred_one_hot_mask).view(batch_size, -1,enc_hw).permute(2,0,1) #hw,B,C
-            
+            pred_id_emb = self.get_id_emb(pred_one_hot_mask).view(
+                batch_size, -1, enc_hw).permute(2, 0, 1)  #hw,B,C
+
             long_memory = [
                 lstt.make_global_kv(curr_kv, pred_id_emb)
-                for curr_kv,lstt in zip(curr_memory, self.LSTT.layers)
+                for curr_kv, lstt in zip(curr_memory, self.LSTT.layers)
             ]
             short_memory = [
                 lstt.make_local_kv(global_kv, enc_size_2d)
                 for global_kv, lstt in zip(long_memory, self.LSTT.layers)
             ]
+            # *_, long_memory, short_memory = self.LSTT_forward(img_emb, None,None, pred_id_emb, **meta)
+            out_mask = pred_mask
 
-            return pred_mask, long_memory, short_memory
+        if ref_masks is not None:
+            if memories is not None:
+                ref_masks += (ref_masks == 0) * pred_mask
 
-        else:
             # generate long and short memory of ref frame
-            ref_one_hot_mask = one_hot_mask(ref_masks,self.max_obj_num)
-            ref_id_emb = self.get_id_emb(ref_one_hot_mask).view(batch_size,-1,enc_hw).permute(2,0,1) #hw,B,C
-            out_emb, _, *memories = self.LSTT_forward(img_emb,None,None,ref_id_emb,pos_emb=pos_emb,size_2d=enc_size_2d)
-            return ref_masks, *memories
+            ref_one_hot_mask = one_hot_mask(ref_masks, self.max_obj_num)
+            ref_id_emb = self.get_id_emb(ref_one_hot_mask).view(
+                batch_size, -1, enc_hw).permute(2, 0, 1)  #hw,B,C
+            out_emb, _, long_memory, short_memory = self.LSTT_forward(
+                img_emb, None, None, ref_id_emb, **meta)
+            out_mask = ref_masks
+
+
+        return out_mask, long_memory, short_memory
