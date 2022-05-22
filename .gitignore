@@ -1,0 +1,7 @@
+__py*
+results
+*.pth
+*.zip
+*.pyc
+*.jpg
+*.png

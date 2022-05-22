@@ -11,6 +11,63 @@ from utils.image import one_hot_mask
 from networks.layers.basic import seq_to_2d
 
 
+from networks.encoders.mod_resnet import resnet50
+##新增的scoring分支
+class Score(nn.Module):
+
+    def __init__(self, in_dim):
+
+        super(Score, self).__init__()
+
+        input_channels = in_dim                                #输入的channel,输入为1024,24,24
+        self.conv1 = nn.Conv2d(input_channels, 256, 3, 1, 1)
+        self.conv2 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.conv3 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.conv4 = nn.Conv2d(256, 256, 3, 2, 1)
+        # self.global_pooling = nn.AdaptiveAvgPool2d(1)
+        # self.fc = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(256 * 15 * 15, 1024)             #有一个步长为2的卷积使得HW都缩小一半
+        self.fc2 = nn.Linear(1024, 1)
+        for l in [self.conv1, self.conv2, self.conv3, self.conv4]:
+            nn.init.kaiming_normal_(l.weight, mode="fan_out", nonlinearity="relu")
+            nn.init.constant_(l.bias, 0)
+        for l in [self.fc1, self.fc2]:
+            # for l in [self.fc]:
+            nn.init.kaiming_uniform_(l.weight, a=1)
+            nn.init.constant_(l.bias, 0)
+
+    def forward(self, x):             #x是f16,f16包含了图片特征以及预测的mask的信息
+
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))   #256,12,12
+        # x = self.global_pooling(x)  #256,1,1
+        # x = x.view(x.size(0), -1)   #256
+        # x = F.leaky_relu(self.fc(x))
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+
+        return x
+
+def maskiou(mask1, mask2):          #maskiou：B,1
+    b, c, h, w = mask1.size()
+    mask1 = mask1.view(b, -1)
+    mask2 = mask2.view(b, -1)
+
+    area1 = mask1.sum(dim=1, keepdim=True)
+    area2 = mask2.sum(dim=1, keepdim=True)
+    inter = ((mask1+mask2)>1.5).sum(dim=1, keepdim=True)
+    union = (area1 + area2 - inter)
+    # zero = torch.zeros_like(area1)
+    for a in range(b):
+        if union[a][0] == torch.tensor(0):
+            union[a][0] = torch.tensor(1)
+
+    maskiou = inter / union
+    return maskiou
+
 class AOTEngine(nn.Module):
     def __init__(self,
                  aot_model,
@@ -22,6 +79,9 @@ class AOTEngine(nn.Module):
         self.cfg = aot_model.cfg
         self.align_corners = aot_model.cfg.MODEL_ALIGN_CORNERS
         self.AOT = aot_model
+        self.qvm_encoder = resnet50(extra_chan=1).cuda()
+        self.qvm = Score(1024).cuda()
+        self.qvm_loss = nn.MSELoss()
 
         self.max_obj_num = aot_model.max_obj_num
         self.gpu_id = gpu_id
@@ -48,6 +108,8 @@ class AOTEngine(nn.Module):
         aux_weight = self.aux_weight * max(self.aux_step - step,
                                            0.) / self.aux_step
 
+        self.all_frames = all_frames
+        self.all_masks = all_masks
         self.offline_encoder(all_frames, all_masks)
 
         self.add_reference_frame(frame_step=0, obj_nums=obj_nums)
@@ -412,12 +474,50 @@ class AOTEngine(nn.Module):
     def generate_loss_mask(self, gt_mask, step, return_prob=False):
         self.decode_current_logits()
         loss = self.calculate_current_loss(gt_mask, step)
+
+        qvm_loss = self.generate_qvm_loss(gt_mask, self.frame_step)
+        loss = loss + qvm_loss
+
         if return_prob:
             mask, prob = self.predict_current_mask(return_prob=True)
             return loss, mask, prob
         else:
             mask = self.predict_current_mask()
             return loss, mask
+
+    def generate_qvm_loss(self, gt_mask, step):
+
+        st = self.batch_size * step
+        imgs = self.all_frames[st:st + self.batch_size]
+        logits = F.interpolate(self.pred_id_logits,
+                               size=imgs.shape[-2:],
+                               mode='bilinear',
+                               align_corners=True)
+
+        img_logits = []
+        gts = []
+        preds = []
+        for fi in range(self.batch_size):
+            for oi in range(self.obj_nums[fi]):
+                logit = logits[fi, oi].unsqueeze(0).unsqueeze(0)
+                im = imgs[fi].unsqueeze(0)
+
+                gts.append((gt_mask[fi] == oi).int())
+                preds.append(torch.sigmoid(logit).round())
+                img_logits.append(torch.cat([im, logit], dim=1))
+        gts = torch.cat(gts, dim=0)
+        preds = torch.cat(preds, dim=0)
+        img_logits = torch.cat(img_logits, dim=0)
+
+        img_mask_feat = self.qvm_encoder(img_logits)
+
+        pred_scores = self.qvm(img_mask_feat[-1])
+        target_scores = maskiou(preds, gts)
+        qvm_loss = self.qvm_loss(pred_scores, target_scores)
+
+        return qvm_loss
+
+
 
     def keep_gt_mask(self, pred_mask, keep_prob=0.2):
         pred_mask = pred_mask.float()
