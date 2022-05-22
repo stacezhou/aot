@@ -1,3 +1,7 @@
 *.pyc
 *.pth
 results
+*.jpg
+*.png
+datasets
+
