@@ -327,7 +327,7 @@ class AOTEngine(nn.Module):
         self.short_term_memories = self.short_term_memories_list[0]
 
         if self.frame_step - self.last_mem_step >= self.long_term_mem_gap:
-            self.update_long_term_memory(local_kv)
+            self.update_long_term_memory(lstt_curr_kvs)
             self.last_mem_step = self.frame_step
 
     def match_propogate_one_frame(self, img=None, img_embs=None):
