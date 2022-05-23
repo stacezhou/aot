@@ -3,11 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from networks.layers.basic import DropOutLogit
 
-def softmax_w_top(x,dim=-1, topk=200):
+def softmax_w_top(x,dim=-1, topk=50):
     values, indices = torch.topk(x, k=topk, dim=dim)
     x_exp = values.exp_()
     x_exp /= torch.sum(x_exp, dim=dim, keepdim=True)
-    x.zero_().scatter_(1, indices, x_exp.type(x.dtype)) 
+    x.zero_().scatter_(dim, indices, x_exp.type(x.dtype)) 
     return x
 
 # Long-term attention
