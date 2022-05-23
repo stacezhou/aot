@@ -237,7 +237,7 @@ class LongShortTermTransformerBlock(nn.Module):
         if curr_id_emb is None: # HW,B,C
             global_K, global_V = long_term_memory
             local_K, local_V = short_term_memory
-        elif self.use_lstt_v2:
+        else:
             global_K,global_V = self.make_global_kv([curr_K,curr_V], curr_id_emb)
             local_K,local_V = self.make_local_kv([global_K,global_V],size_2d)
 
