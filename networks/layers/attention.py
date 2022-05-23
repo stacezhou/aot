@@ -86,7 +86,9 @@ class MultiheadAttention(nn.Module):
 
     def split_forward(self, Q, K, V):
         N = Q.shape[0]
-        step = 200
+        M = K.shape[0]
+        Limit = 1.6e8
+        step = int((Limit - M) // M)
         output = []
         for i in range(0,N,step):
             output.append(self.forward(Q[i:i+step], K, V))
