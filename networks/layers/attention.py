@@ -74,6 +74,17 @@ class MultiheadAttention(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
+    def split_forward(self, Q, K, V):
+        N = Q.shape[0]
+        step = 200
+        output_attn = []
+        for i in range(0,N,step):
+            output_attn.append(self.forward(Q[i:i+step], K, V))
+        output, attn = list(zip(*output_attn))
+        output = torch.cat(output,dim=0)
+        attn = torch.cat(attn,dim=2)
+        return output, attn
+
 
 # Short-term attention
 class MultiheadLocalAttentionV1(nn.Module):

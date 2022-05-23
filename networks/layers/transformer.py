@@ -242,7 +242,7 @@ class LongShortTermTransformerBlock(nn.Module):
             global_K,global_V = self.make_global_kv([curr_K,curr_V], curr_id_emb)
             local_K,local_V = self.make_local_kv([global_K,global_V],size_2d)
 
-        tgt2 = self.long_term_attn(curr_Q, global_K, global_V)[0]
+        tgt2 = self.long_term_attn.split_forward(curr_Q, global_K, global_V)[0]
         tgt3 = self.short_term_attn(local_Q, local_K, local_V)[0]
 
         if self.droppath_lst:
