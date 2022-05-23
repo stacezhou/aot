@@ -313,6 +313,7 @@ class AOTEngine(nn.Module):
 
         lstt_curr_kvs = self.curr_lstt_output[1]
         lstt_curr_local_kvs = []
+        lstt_curr_globals_kvs = []
         for layer_idx in range(len(lstt_curr_kvs)):
             lstt_layer = self.AOT.LSTT.layers[layer_idx]
 
@@ -320,6 +321,7 @@ class AOTEngine(nn.Module):
             global_kv = lstt_layer.make_global_kv(curr_kv, curr_id_emb)
             local_kv = lstt_layer.make_local_kv(global_kv, self.enc_size_2d)
             lstt_curr_local_kvs.append(local_kv)
+            lstt_curr_globals_kvs.append(global_kv)
 
         self.short_term_memories_list.append(lstt_curr_local_kvs)
         self.short_term_memories_list = self.short_term_memories_list[
@@ -327,7 +329,7 @@ class AOTEngine(nn.Module):
         self.short_term_memories = self.short_term_memories_list[0]
 
         if self.frame_step - self.last_mem_step >= self.long_term_mem_gap:
-            self.update_long_term_memory(local_kv)
+            self.update_long_term_memory(lstt_curr_globals_kvs)
             self.last_mem_step = self.frame_step
 
     def match_propogate_one_frame(self, img=None, img_embs=None):
