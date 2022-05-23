@@ -67,7 +67,7 @@ class MultiheadAttention(nn.Module):
 
         outputs = self.projection(outputs)
 
-        return outputs, attn
+        return outputs
 
     def _init_weight(self):
         for p in self.parameters():
@@ -77,13 +77,11 @@ class MultiheadAttention(nn.Module):
     def split_forward(self, Q, K, V):
         N = Q.shape[0]
         step = 200
-        output_attn = []
+        output = []
         for i in range(0,N,step):
-            output_attn.append(self.forward(Q[i:i+step], K, V))
-        output, attn = list(zip(*output_attn))
+            output.append(self.forward(Q[i:i+step], K, V))
         output = torch.cat(output,dim=0)
-        attn = torch.cat(attn,dim=2)
-        return output, attn
+        return output
 
 
 # Short-term attention
