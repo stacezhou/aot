@@ -114,8 +114,7 @@ class DefaultEngineConfig():
 
         self.DIR_ROOT = './results'
 
-        self.DIR_RESULT = os.path.join(self.DIR_ROOT, 'result', self.EXP_NAME,
-                                       self.STAGE_NAME)
+        self.DIR_RESULT = os.path.join(self.DIR_ROOT, f'{self.EXP_NAME}__{self.STAGE_NAME}')
         self.DIR_CKPT = os.path.join(self.DIR_RESULT, 'ckpt')
         self.DIR_EMA_CKPT = os.path.join(self.DIR_RESULT, 'ema_ckpt')
         self.DIR_LOG = os.path.join(self.DIR_RESULT, 'log')

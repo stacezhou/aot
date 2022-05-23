@@ -16,6 +16,6 @@ class EngineConfig(DefaultEngineConfig):
         pretrain_stage = 'PRE'
         pretrain_ckpt = 'save_step_100000.pth'
         self.PRETRAIN_FULL = True  # if False, load encoder only
-        self.PRETRAIN_MODEL = os.path.join(self.DIR_ROOT, 'result',
-                                           self.EXP_NAME, pretrain_stage,
+        self.PRETRAIN_MODEL = os.path.join(self.DIR_ROOT, 
+                                        f'{self.EXP_NAME}__{pretrain_stage}',
                                            'ema_ckpt', pretrain_ckpt)
