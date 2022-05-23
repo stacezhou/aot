@@ -24,7 +24,7 @@ def rgba(im):
 def update_videos(data):
     data['masks_label'] = ['pred','ref']
     data['videos'] = [v.name for v in data['pred_root'].iterdir() if v.is_dir()]
-    data['videos'] = sorted(list(set(data['videos'])))
+    print(len(data['videos']))
     data['frames'] = dict()
     for v in data['videos']:
         frames_name = [f.name for f in (data['gt_root'] / v).glob('*.png')]
@@ -35,14 +35,21 @@ def update_videos(data):
 image_root = Path('/data/YouTube/test/JPEGImages')
 data = dict()
 data['pred_root'] = Path(
-    './results/sub_851/sub_851/Annotations'
-    )
+    'results/baseline851_SwinB_AOTL__PRE_YTB_DAV/eval/youtubevos2019_test_baseline851_SwinB_AOTL_PRE_YTB_DAV_ckpt_unknown_ema_flip_ms_0dot75_1dot0_1dot4'
+    ) / 'Annotations'
 data['gt_root'] = Path(
-    './results/sub_851/sub_851/Annotations'
-    )
-Exps =[str(p) for p in Path('./results').rglob('Annotations')]
-predSelectInput = AutocompleteInput(completions=Exps, value=Exps[0])
-gtSelectInput = AutocompleteInput(completions=Exps, value=Exps[0])
+    './results/sub_851/sub_851'
+    ) / 'Annotations'
+update_videos(data)
+import pandas as pd
+frame_df_file = \
+    '/home/zh21/code/aot/results/baseline851_SwinB_AOTL__PRE_YTB_DAV/eval/frame_df_youtubevos2019_test_baseline851_SwinB_AOTL_PRE_YTB_DAV_ckpt_unknown_ema_flip_ms_0dot75_1dot0_1dot4_vs_sub_851.csv'
+
+frame_df = pd.read_csv(
+    frame_df_file
+).reset_index(drop=True).set_index('name')
+video_df_file = str(Path(frame_df_file).parent / ('video_' + Path(frame_df_file).name[6:]))
+print(pd.read_csv(video_df_file).head(10))
 # 模块
 videoSelectInput = AutocompleteInput(completions=data['videos'], value=data['videos'][0])
 frameSlider = Slider(value=0)
@@ -136,16 +143,17 @@ def next_video():
     i = videoSelectInput.completions.index(videoSelectInput.value)
     if i != len(videoSelectInput.completions) - 1:
         videoSelectInput.value = videoSelectInput.completions[i+1]
+    print(frame_df.loc[videoSelectInput.value].values)
     
     change_frame()
 
 def last_video():
     frameSlider.value = 0
-    subset()
     i = videoSelectInput.completions.index(videoSelectInput.value)
     if i != 0:
         videoSelectInput.value = videoSelectInput.completions[i-1]
     
+    print(frame_df.loc[videoSelectInput.value].values)
     change_frame()
 
     
@@ -179,7 +187,7 @@ def do_compare():
 frameSlider.on_change( 'value', lambda a,o,n: change_frame())
 videoSelectInput.on_change('value',lambda a,o,n:change_frame())
 maskSelect.on_change('active', lambda a,o,n:change_frame())
-refresh.on_click(lambda a:change_frame())
+refresh.on_click(lambda a:subset())
 lastFrame.on_click(lambda a:last_frame())
 nextFrame.on_click(lambda a:next_frame())
 lastVideo.on_click(lambda a:last_video())
@@ -204,6 +212,7 @@ curdoc().add_root(layout([
         text_area_input,
         lastVideo,
         nextVideo,
+        refresh
      ]],
     [maskSelect, compare],
     [lastFrame,nextFrame], 
