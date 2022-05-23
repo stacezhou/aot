@@ -1,13 +1,12 @@
 exp='finetune'
-gpu_num=8
+gpu_num=4
 model="swinb_aotl"
 stage="finetune"
-dataset="youtubevos2019"
-split="val"  
 
 python tools/train.py --amp \
+	--lstt_v2 \
 	--exp_name ${exp} \
 	--stage ${stage} \
 	--model ${model} \
 	--gpu_num ${gpu_num} \
-	--batch_size 24
+	--batch_size 12 
