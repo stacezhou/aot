@@ -200,11 +200,14 @@ class Evaluator(object):
         cfg = self.cfg
         self.model.eval()
         video_num = 0
-        processed_video_num = 0
         total_video_num = len(self.dataset)
         start_eval_time = time.time()
         debug_subset = [
-
+            '3255fcad2f',
+            '108ca5419a',
+            '14dc31fcf5',
+            '393abc40d1',
+            '12d307c850'
         ]
 
         if self.seq_queue is not None:
@@ -226,14 +229,12 @@ class Evaluator(object):
                 else:
                     coming_seq_idx = self.seq_queue.get()
 
-            processed_video_num += 1
 
             seq_name = seq_dataset.seq_name
-            # if seq_name not in debug_subset:
-            #     continue
+            if seq_name not in debug_subset:
+                continue
             print('GPU {} - Processing Seq {} [{}/{}]:'.format(
                 self.gpu, seq_name, video_num, total_video_num))
-            torch.cuda.empty_cache()
 
             seq_dataloader = DataLoader(seq_dataset,
                                         batch_size=1,
@@ -284,6 +285,8 @@ class Evaluator(object):
 
             # Save result
             for imgname,obj_idx,mask_result in zip(seq_imgname,seq_obj_idx,seq_outputs):
+                from pathlib import Path
+                (Path(self.result_root) / seq_name).mkdir(exist_ok=True,parents=True)
                 save_mask(mask_result.squeeze(0).squeeze(0),
                         os.path.join(self.result_root, seq_name,
                                     imgname[0].split('.')[0] + '.png'),

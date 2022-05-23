@@ -154,19 +154,19 @@ class YOUTUBEVOS_Test(object):
         images = np.sort(np.unique(images))
         labels = np.sort(np.unique(labels))
 
-        try:
-            if not os.path.isfile(
-                    os.path.join(self.result_root, seq_name, labels[0])):
-                if not os.path.exists(os.path.join(self.result_root,
-                                                   seq_name)):
-                    os.makedirs(os.path.join(self.result_root, seq_name))
-                shutil.copy(
-                    os.path.join(self.label_root, seq_name, labels[0]),
-                    os.path.join(self.result_root, seq_name, labels[0]))
-        except Exception as inst:
-            print(inst)
-            print('Failed to create a result folder for sequence {}.'.format(
-                seq_name))
+        # try:
+        #     if not os.path.isfile(
+        #             os.path.join(self.result_root, seq_name, labels[0])):
+        #         if not os.path.exists(os.path.join(self.result_root,
+        #                                            seq_name)):
+        #             os.makedirs(os.path.join(self.result_root, seq_name))
+        #         shutil.copy(
+        #             os.path.join(self.label_root, seq_name, labels[0]),
+        #             os.path.join(self.result_root, seq_name, labels[0]))
+        # except Exception as inst:
+        #     print(inst)
+        #     print('Failed to create a result folder for sequence {}.'.format(
+        #         seq_name))
 
         seq_dataset = VOSTest(self.image_root,
                               self.label_root,
