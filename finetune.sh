@@ -1,4 +1,4 @@
-exp='finetune'
+exp=${1:-'finetune'}
 gpu_num=4
 model="swinb_aotl"
 stage="finetune"
