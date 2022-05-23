@@ -245,6 +245,54 @@ class FinetuneTrain(StaticTrain):
         assert len(self.img_list) == len(self.mask_list)
         print(f'{len(self.img_list)} imgs are used for finetune.')
 
+
+    def sample_sequence(self, idx):
+        img_pil = self.load_image_in_PIL(self.img_list[idx], 'RGB')
+        mask_pil = self.load_image_in_PIL(self.mask_list[idx], 'P')
+
+        frames = []
+        masks = []
+
+        img_pil, mask_pil = self.pre_random_horizontal_flip(img_pil, mask_pil)
+
+        for i in range(self.clip_n):
+            img, mask = img_pil, mask_pil
+
+            if i > 0:
+                img, mask = self.random_horizontal_flip(img, mask)
+                img, mask = self.random_affine(img, mask)
+
+            img, mask = self.random_resize_crop(img, mask)
+
+            mask = np.array(mask, np.uint8)
+
+            if i == 0:
+                mask, obj_list = self.to_onehot(mask)
+                obj_num = len(obj_list)
+            else:
+                mask, _ = self.to_onehot(mask, obj_list)
+
+            mask = torch.argmax(mask, dim=0, keepdim=True)
+
+            frames.append(self.normalize(self.to_tensor(img)))
+            masks.append(mask)
+
+        sample = {
+            'ref_img': frames[0],
+            'prev_img': frames[1],
+            'curr_img': frames[2:],
+            'ref_label': masks[0],
+            'prev_label': masks[1],
+            'curr_label': masks[2:]
+        }
+        sample['meta'] = {
+            'seq_name': self.img_list[idx],
+            'frame_num': 1,
+            'obj_num': obj_num
+        }
+
+        return sample
+
 class VOSTrain(Dataset):
     def __init__(self,
                  image_root,
