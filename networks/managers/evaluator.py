@@ -195,16 +195,17 @@ class Evaluator(object):
                     self.result_root))
         self.print_log('Done!')
 
+    @torch.no_grad()
     def evaluating(self):
         cfg = self.cfg
         self.model.eval()
         video_num = 0
         processed_video_num = 0
-        total_time = 0
-        total_frame = 0
-        total_sfps = 0
         total_video_num = len(self.dataset)
         start_eval_time = time.time()
+        debug_subset = [
+
+        ]
 
         if self.seq_queue is not None:
             if self.rank == 0:
@@ -214,344 +215,92 @@ class Evaluator(object):
                     self.seq_queue.put('END')
             coming_seq_idx = self.seq_queue.get()
 
-        all_engines = []
-        with torch.no_grad():
-            for seq_idx, seq_dataset in enumerate(self.dataset):
-                video_num += 1
+        for seq_idx, seq_dataset in enumerate(self.dataset):
+            video_num += 1
 
-                if self.seq_queue is not None:
-                    if coming_seq_idx == 'END':
-                        break
-                    elif coming_seq_idx != seq_idx:
-                        continue
-                    else:
-                        coming_seq_idx = self.seq_queue.get()
-
-                processed_video_num += 1
-
-                for engine in all_engines:
-                    engine.restart_engine()
-
-                seq_name = seq_dataset.seq_name
-                print('GPU {} - Processing Seq {} [{}/{}]:'.format(
-                    self.gpu, seq_name, video_num, total_video_num))
-                torch.cuda.empty_cache()
-
-                seq_dataloader = DataLoader(seq_dataset,
-                                            batch_size=1,
-                                            shuffle=False,
-                                            num_workers=cfg.TEST_WORKERS,
-                                            pin_memory=True)
-
-                if 'all_frames' in cfg.TEST_DATASET_SPLIT:
-                    images_sparse = seq_dataset.images_sparse
-                    seq_dir_sparse = os.path.join(self.result_root_sparse,
-                                                  seq_name)
-                    if not os.path.exists(seq_dir_sparse):
-                        os.makedirs(seq_dir_sparse)
-
-                seq_total_time = 0
-                seq_total_frame = 0
-                seq_pred_masks = {'dense': [], 'sparse': []}
-                seq_timers = []
-
-                memories = None
-                for frame_idx, samples in enumerate(seq_dataloader):
-
-                    if frame_idx == 0:
-                        seq_timers.append([])
-                        now_timer = torch.cuda.Event(
-                            enable_timing=True)
-                        now_timer.record()
-                        seq_timers[-1].append((now_timer))
-
-                    all_preds = []
-                    new_obj_label = None
-
-                    sample = samples[0]
-                    imgname = sample['meta']['current_name']
-                    obj_idx = sample['meta']['obj_idx']
-                    obj_nums = sample['meta']['obj_num']
-                    ori_height = sample['meta']['height']
-                    ori_width = sample['meta']['width']
-                    current_img = sample['current_img'].cuda(self.gpu,
-                                                       non_blocking=True)
-                    obj_nums = [int(obj_num) for obj_num in obj_nums]
-                    obj_idx = [int(_obj_idx) for _obj_idx in obj_idx]
-                    
-                    if 'current_label' in sample.keys():
-                        current_label = sample['current_label'].cuda(
-                            self.gpu, non_blocking=True).float()
-                        current_label = F.interpolate(current_label, current_img.shape[-2:], mode='nearest')
-                        obj_nums = [int(current_label.max().item())]
-                    else:
-                        current_label = None
-
-                    pred_masks, *memory = self.model(current_img, 
-                                                    memories = memories,
-                                                    ref_masks = current_label, 
-                                                    obj_nums=obj_nums)
-                    if memories is None:
-                        memories = memory 
-                    else:
-                        memories[1] = memory[1]
-                        if frame_idx % 5 == 0:
-                            memories[0] = [
-                                [ torch.cat([t1,t2], dim=0) for t1,t2 in zip(l1,l2) ]
-                                for l1,l2 in zip(memories[0],memory[0])
-                            ]
-
-                    now_timer = torch.cuda.Event(enable_timing=True)
-                    now_timer.record()
-                    seq_timers[-1].append((now_timer))
-
-                    if cfg.TEST_FRAME_LOG:
-                        torch.cuda.synchronize()
-                        one_frametime = seq_timers[-1][0].elapsed_time(
-                            seq_timers[-1][1]) / 1e3
-                        obj_num = obj_nums[0]
-                        print(
-                            'GPU {} - Frame: {} - Obj Num: {}, Time: {}ms'.
-                            format(self.gpu, imgname[0].split('.')[0],
-                                    obj_num, int(one_frametime * 1e3)))
-                    # Save result
-                    pred_label = pred_masks
-                    seq_pred_masks['dense'].append({
-                        'path': os.path.join(self.result_root, seq_name,
-                                        imgname[0].split('.')[0] + '.png'),
-                        'mask': pred_label,
-                        'obj_idx': obj_idx
-                    })
+            if self.seq_queue is not None:
+                if coming_seq_idx == 'END':
+                    break
+                elif coming_seq_idx != seq_idx:
                     continue
-                    for aug_idx in range(len(samples)):
-                        if len(all_engines) <= aug_idx:
-                            all_engines.append(
-                                build_engine(cfg.MODEL_ENGINE,
-                                             phase='eval',
-                                             aot_model=self.model,
-                                             gpu_id=self.gpu,
-                                             long_term_mem_gap=self.cfg.
-                                             TEST_LONG_TERM_MEM_GAP))
-                            all_engines[-1].eval()
+                else:
+                    coming_seq_idx = self.seq_queue.get()
 
-                        engine = all_engines[aug_idx]
+            processed_video_num += 1
 
-                        sample = samples[aug_idx]
+            seq_name = seq_dataset.seq_name
+            # if seq_name not in debug_subset:
+            #     continue
+            print('GPU {} - Processing Seq {} [{}/{}]:'.format(
+                self.gpu, seq_name, video_num, total_video_num))
+            torch.cuda.empty_cache()
 
-                        is_flipped = sample['meta']['flip']
+            seq_dataloader = DataLoader(seq_dataset,
+                                        batch_size=1,
+                                        shuffle=False,
+                                        num_workers=cfg.TEST_WORKERS,
+                                        pin_memory=True)
 
-                        obj_nums = sample['meta']['obj_num']
-                        imgname = sample['meta']['current_name']
-                        ori_height = sample['meta']['height']
-                        ori_width = sample['meta']['width']
-                        obj_idx = sample['meta']['obj_idx']
 
-                        obj_nums = [int(obj_num) for obj_num in obj_nums]
-                        obj_idx = [int(_obj_idx) for _obj_idx in obj_idx]
+            seq_samples = [sample for samples in seq_dataloader for sample in samples]
+            seq_imgs = [sample['current_img'] for sample in seq_samples]
+            seq_obj_idx = [[int(i) for i in sample['meta']['obj_idx']] for sample in seq_samples]
+            seq_imgname = [sample['meta']['current_name'] for sample in seq_samples]
+            # seq_ori_h = [sample['meta']['height'] for sample in seq_samples]
+            # seq_ori_w = [sample['meta']['width'] for sample in seq_samples]
+            seq_masks = [
+                F.interpolate(sample['current_label'].float(),img.shape[-2:], mode='nearest') if 'current_label' in sample else None
+                for sample,img in zip(seq_samples, seq_imgs)
+            ]
+            seq_obj_nums = []
+            for mask in seq_masks:
+                if mask is not None:
+                    obj_num = [int(mask.max().item())]
+                seq_obj_nums.append(obj_num)
+            seq_inputs = list(zip(seq_imgs,seq_masks,seq_obj_nums))
 
-                        current_img = sample['current_img']
-                        current_img = current_img.cuda(self.gpu,
-                                                       non_blocking=True)
-                        sample['current_img'] = current_img
+            seq_outputs = []
+            memories = None
+            saved_memories = []
+            for idx,(imgs,ref_masks,obj_nums) in enumerate(seq_inputs):
 
-                        if 'current_label' in sample.keys():
-                            current_label = sample['current_label'].cuda(
-                                self.gpu, non_blocking=True).float()
-                        else:
-                            current_label = None
+                ref_masks = ref_masks.cuda() if ref_masks is not None else None
+                pred_masks, *memory = self.model(imgs.cuda(), 
+                                                memories = memories,
+                                                ref_masks = ref_masks, 
+                                                obj_nums=obj_nums)
+                if memories is None:
+                    memories = memory 
+                else:
+                    memories[1] = memory[1]
+                    if idx % 5 == 0:
+                        memories[0] = [
+                            [ torch.cat([t1,t2], dim=0) for t1,t2 in zip(l1,l2) ]
+                            for l1,l2 in zip(memories[0],memory[0])
+                        ]
+                
+                saved_memories.append(memory)
+                seq_outputs.append(pred_masks)
 
-                        #############################################################
+            # Save result
+            for imgname,obj_idx,mask_result in zip(seq_imgname,seq_obj_idx,seq_outputs):
+                save_mask(mask_result.squeeze(0).squeeze(0),
+                        os.path.join(self.result_root, seq_name,
+                                    imgname[0].split('.')[0] + '.png'),
+                            obj_idx)
 
-                        if frame_idx == 0:
-                            _current_label = F.interpolate(
-                                current_label,
-                                size=current_img.size()[2:],
-                                mode="nearest")
-                            engine.add_reference_frame(current_img,
-                                                       _current_label,
-                                                       frame_step=0,
-                                                       obj_nums=obj_nums)
-                        else:
-                            if aug_idx == 0:
-                                seq_timers.append([])
-                                now_timer = torch.cuda.Event(
-                                    enable_timing=True)
-                                now_timer.record()
-                                seq_timers[-1].append((now_timer))
-
-                            engine.match_propogate_one_frame(current_img)
-                            pred_logit = engine.decode_current_logits(
-                                (ori_height, ori_width))
-
-                            if is_flipped:
-                                pred_logit = flip_tensor(pred_logit, 3)
-
-                            pred_prob = torch.softmax(pred_logit, dim=1)
-                            all_preds.append(pred_prob)
-
-                            if not is_flipped and current_label is not None and new_obj_label is None:
-                                new_obj_label = current_label
-
-                    if frame_idx > 0:
-                        all_preds = torch.cat(all_preds, dim=0)
-                        pred_prob = torch.mean(all_preds, dim=0, keepdim=True)
-                        pred_label = torch.argmax(pred_prob,
-                                                  dim=1,
-                                                  keepdim=True).float()
-
-                        if new_obj_label is not None:
-                            keep = (new_obj_label == 0).float()
-                            pred_label = pred_label * \
-                                keep + new_obj_label * (1 - keep)
-                            new_obj_nums = [int(pred_label.max().item())]
-
-                            if cfg.TEST_FLIP:
-                                flip_pred_label = flip_tensor(pred_label, 3)
-
-                            for aug_idx in range(len(samples)):
-                                engine = all_engines[aug_idx]
-                                current_img = samples[aug_idx]['current_img']
-
-                                current_label = flip_pred_label if samples[
-                                    aug_idx]['meta']['flip'] else pred_label
-                                current_label = F.interpolate(
-                                    current_label,
-                                    size=engine.input_size_2d,
-                                    mode="nearest")
-                                engine.add_reference_frame(
-                                    current_img,
-                                    current_label,
-                                    obj_nums=new_obj_nums,
-                                    frame_step=frame_idx)
-                        else:
-                            if not cfg.MODEL_USE_PREV_PROB:
-                                if cfg.TEST_FLIP:
-                                    flip_pred_label = flip_tensor(
-                                        pred_label, 3)
-
-                                for aug_idx in range(len(samples)):
-                                    engine = all_engines[aug_idx]
-                                    current_label = flip_pred_label if samples[
-                                        aug_idx]['meta']['flip'] else pred_label
-                                    current_label = F.interpolate(
-                                        current_label,
-                                        size=engine.input_size_2d,
-                                        mode="nearest")
-                                    engine.update_memory(current_label)
-                            else:
-                                if cfg.TEST_FLIP:
-                                    flip_pred_prob = flip_tensor(pred_prob, 3)
-
-                                for aug_idx in range(len(samples)):
-                                    engine = all_engines[aug_idx]
-                                    current_prob = flip_pred_prob if samples[
-                                        aug_idx]['meta']['flip'] else pred_prob
-                                    current_prob = F.interpolate(
-                                        current_prob,
-                                        size=engine.input_size_2d,
-                                        mode="nearest")
-                                    engine.update_memory(current_prob)
-
-                        now_timer = torch.cuda.Event(enable_timing=True)
-                        now_timer.record()
-                        seq_timers[-1].append((now_timer))
-
-                        if cfg.TEST_FRAME_LOG:
-                            torch.cuda.synchronize()
-                            one_frametime = seq_timers[-1][0].elapsed_time(
-                                seq_timers[-1][1]) / 1e3
-                            obj_num = obj_nums[0]
-                            print(
-                                'GPU {} - Frame: {} - Obj Num: {}, Time: {}ms'.
-                                format(self.gpu, imgname[0].split('.')[0],
-                                       obj_num, int(one_frametime * 1e3)))
-
-                        # Save result
-                        seq_pred_masks['dense'].append({
-                            'path':
-                            os.path.join(self.result_root, seq_name,
-                                         imgname[0].split('.')[0] + '.png'),
-                            'mask':
-                            pred_label,
-                            'obj_idx':
-                            obj_idx
-                        })
-                        if 'all_frames' in cfg.TEST_DATASET_SPLIT and imgname in images_sparse:
-                            seq_pred_masks['sparse'].append({
-                                'path':
-                                os.path.join(self.result_root_sparse, seq_name,
-                                             imgname[0].split('.')[0] +
-                                             '.png'),
-                                'mask':
-                                pred_label,
-                                'obj_idx':
-                                obj_idx
-                            })
-
-                # Save result
-                for mask_result in seq_pred_masks['dense'] + seq_pred_masks[
-                        'sparse']:
-                    save_mask(mask_result['mask'].squeeze(0).squeeze(0),
-                              mask_result['path'], mask_result['obj_idx'])
-                del (seq_pred_masks)
-
-                for timer in seq_timers:
-                    torch.cuda.synchronize()
-                    one_frametime = timer[0].elapsed_time(timer[1]) / 1e3
-                    seq_total_time += one_frametime
-                    seq_total_frame += 1
-                del (seq_timers)
-
-                seq_avg_time_per_frame = seq_total_time / seq_total_frame
-                total_time += seq_total_time
-                total_frame += seq_total_frame
-                total_avg_time_per_frame = total_time / total_frame
-                total_sfps += seq_avg_time_per_frame
-                avg_sfps = total_sfps / processed_video_num
-                max_mem = torch.cuda.max_memory_allocated(
-                    device=self.gpu) / (1024.**3)
-                print(
-                    "GPU {} - Seq {} - FPS: {:.2f}. All-Frame FPS: {:.2f}, All-Seq FPS: {:.2f}, Max Mem: {:.2f}G"
-                    .format(self.gpu, seq_name, 1. / seq_avg_time_per_frame,
-                            1. / total_avg_time_per_frame, 1. / avg_sfps,
-                            max_mem))
+            max_mem = torch.cuda.max_memory_allocated(
+                device=self.gpu) / (1024.**3)
+            print(
+                "GPU {} - Seq {} - Max Mem: {:.2f}G"
+                .format(self.gpu, seq_name, max_mem))
 
         if self.seq_queue is not None:
-            if self.rank != 0:
-                self.info_queue.put({
-                    'total_time': total_time,
-                    'total_frame': total_frame,
-                    'total_sfps': total_sfps,
-                    'processed_video_num': processed_video_num,
-                    'max_mem': max_mem
-                })
             print('Finished the evaluation on GPU {}.'.format(self.gpu))
-            if self.rank == 0:
-                for _ in range(self.gpu_num - 1):
-                    info_dict = self.info_queue.get()
-                    total_time += info_dict['total_time']
-                    total_frame += info_dict['total_frame']
-                    total_sfps += info_dict['total_sfps']
-                    processed_video_num += info_dict['processed_video_num']
-                    max_mem = max(max_mem, info_dict['max_mem'])
-                all_reduced_total_avg_time_per_frame = total_time / total_frame
-                all_reduced_avg_sfps = total_sfps / processed_video_num
-                print(
-                    "GPU {} - All-Frame FPS: {:.2f}, All-Seq FPS: {:.2f}, Max Mem: {:.2f}G"
-                    .format(list(range(self.gpu_num)),
-                            1. / all_reduced_total_avg_time_per_frame,
-                            1. / all_reduced_avg_sfps, max_mem))
-        else:
-            print(
-                "GPU {} - All-Frame FPS: {:.2f}, All-Seq FPS: {:.2f}, Max Mem: {:.2f}G"
-                .format(self.gpu, 1. / total_avg_time_per_frame, 1. / avg_sfps,
-                        max_mem))
 
         if self.rank == 0:
             zip_folder(self.source_folder, self.zip_dir)
             self.print_log('Saving result to {}.'.format(self.zip_dir))
-            if 'all_frames' in cfg.TEST_DATASET_SPLIT:
-                zip_folder(self.result_root_sparse, self.zip_dir_sparse)
             end_eval_time = time.time()
             total_eval_time = str(
                 datetime.timedelta(seconds=int(end_eval_time -
