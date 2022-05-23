@@ -141,13 +141,13 @@ class StaticTrain(Dataset):
                                              translate=(0.1, 0.1),
                                              scale=(0.9, 1.1),
                                              shear=10,
-                                             resample=Image.BICUBIC,
+                                             resample=TF.InterpolationMode.BICUBIC,
                                              fillcolor=(124, 116, 104))
         base_ratio = float(output_size[1]) / output_size[0]
         self.random_resize_crop = IT.RandomResizedCrop(
             output_size, (0.8, 1),
             ratio=(base_ratio * 3. / 4., base_ratio * 4. / 3.),
-            interpolation=Image.BICUBIC)
+            interpolation=TF.InterpolationMode.BICUBIC)
         self.to_tensor = TF.ToTensor()
         self.to_onehot = IT.ToOnehot(max_obj_n, shuffle=True)
         self.normalize = TF.Normalize((0.485, 0.456, 0.406),

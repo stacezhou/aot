@@ -1,5 +1,6 @@
 import torch.nn.functional as F
 from torch import nn
+import torch
 
 
 from networks.layers.basic import DropPath, GroupNorm1D, GNActDWConv2d, seq_to_2d
@@ -195,7 +196,7 @@ class LongShortTermTransformerBlock(nn.Module):
     def make_global_kv(self, curr_kv, curr_id_emb):
         curr_K, curr_V = curr_kv
         if self.use_lstt_v2:
-            gate = 1 + F.tanh(self.gating_linear(curr_id_emb))  # HW,B,1
+            gate = 1 + torch.tanh(self.gating_linear(curr_id_emb))  # HW,B,1
             K = curr_K * gate.expand(curr_K.shape)
             V =  self.linear_V(curr_V + self.identify_linear(curr_id_emb))
         else:

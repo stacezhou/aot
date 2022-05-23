@@ -10,12 +10,12 @@ import torch
 import torchvision.transforms.functional as TF
 
 _pil_interpolation_to_str = {
-    Image.NEAREST: 'PIL.Image.NEAREST',
-    Image.BILINEAR: 'PIL.Image.BILINEAR',
-    Image.BICUBIC: 'PIL.Image.BICUBIC',
-    Image.LANCZOS: 'PIL.Image.LANCZOS',
-    Image.HAMMING: 'PIL.Image.HAMMING',
-    Image.BOX: 'PIL.Image.BOX',
+    TF.InterpolationMode.NEAREST: 'PIL.TF.InterpolationMode.NEAREST',
+    TF.InterpolationMode.BILINEAR: 'PIL.TF.InterpolationMode.BILINEAR',
+    TF.InterpolationMode.BICUBIC: 'PIL.TF.InterpolationMode.BICUBIC',
+    TF.InterpolationMode.LANCZOS: 'PIL.TF.InterpolationMode.LANCZOS',
+    TF.InterpolationMode.HAMMING: 'PIL.TF.InterpolationMode.HAMMING',
+    TF.InterpolationMode.BOX: 'PIL.TF.InterpolationMode.BOX',
 }
 
 
@@ -73,9 +73,9 @@ class RandomAffine(object):
             range (shear[0], shear[1]) will be applied. Else if shear is a tuple or list of 4 values,
             a x-axis shear in (shear[0], shear[1]) and y-axis shear in (shear[2], shear[3]) will be applied.
             Will not apply shear by default
-        resample ({PIL.Image.NEAREST, PIL.Image.BILINEAR, PIL.Image.BICUBIC}, optional):
+        resample ({PIL.TF.InterpolationMode.NEAREST, PIL.TF.InterpolationMode.BILINEAR, PIL.TF.InterpolationMode.BICUBIC}, optional):
             An optional resampling filter. See `filters`_ for more information.
-            If omitted, or if the image has mode "1" or "P", it is set to PIL.Image.NEAREST.
+            If omitted, or if the image has mode "1" or "P", it is set to PIL.TF.InterpolationMode.NEAREST.
         fillcolor (tuple or int): Optional fill color (Tuple for RGB Image And int for grayscale) for the area
             outside the transform in the output image.(Pillow>=5.0.0)
 
@@ -182,9 +182,9 @@ class RandomAffine(object):
                               self.shear, img.size)
         img = TF.affine(img,
                         *ret,
-                        resample=self.resample,
-                        fillcolor=self.fillcolor)
-        mask = TF.affine(mask, *ret, resample=Image.NEAREST, fillcolor=0)
+                        interpolation=self.resample,
+                        fill=self.fillcolor)
+        mask = TF.affine(mask, *ret, interpolation=TF.InterpolationMode.NEAREST, fill=0)
         return img, mask
 
     def __repr__(self):
@@ -316,13 +316,13 @@ class RandomResizedCrop(object):
         size: expected output size of each edge
         scale: range of size of the origin size cropped
         ratio: range of aspect ratio of the origin aspect ratio cropped
-        interpolation: Default: PIL.Image.BILINEAR
+        interpolation: Default: PIL.TF.InterpolationMode.BILINEAR
     """
     def __init__(self,
                  size,
                  scale=(0.08, 1.0),
                  ratio=(3. / 4., 4. / 3.),
-                 interpolation=Image.BILINEAR):
+                 interpolation=TF.InterpolationMode.BILINEAR):
         if isinstance(size, (tuple, list)):
             self.size = size
         else:
@@ -389,7 +389,7 @@ class RandomResizedCrop(object):
         i, j, h, w = self.get_params(img, self.scale, self.ratio)
         # print(i, j, h, w)
         img = TF.resized_crop(img, i, j, h, w, self.size, self.interpolation)
-        mask = TF.resized_crop(mask, i, j, h, w, self.size, Image.NEAREST)
+        mask = TF.resized_crop(mask, i, j, h, w, self.size, TF.InterpolationMode.NEAREST)
         return img, mask
 
     def __repr__(self):
@@ -461,10 +461,10 @@ class Resize(torch.nn.Module):
             In torchscript mode padding as single int is not supported, use a tuple or
             list of length 1: ``[size, ]``.
         interpolation (int, optional): Desired interpolation enum defined by `filters`_.
-            Default is ``PIL.Image.BILINEAR``. If input is Tensor, only ``PIL.Image.NEAREST``, ``PIL.Image.BILINEAR``
-            and ``PIL.Image.BICUBIC`` are supported.
+            Default is ``PIL.TF.InterpolationMode.BILINEAR``. If input is Tensor, only ``PIL.TF.InterpolationMode.NEAREST``, ``PIL.TF.InterpolationMode.BILINEAR``
+            and ``PIL.TF.InterpolationMode.BICUBIC`` are supported.
     """
-    def __init__(self, size, interpolation=Image.BILINEAR):
+    def __init__(self, size, interpolation=TF.InterpolationMode.BILINEAR):
         super().__init__()
         if not isinstance(size, (int, Sequence)):
             raise TypeError("Size should be int or sequence. Got {}".format(
@@ -484,7 +484,7 @@ class Resize(torch.nn.Module):
             PIL Image or Tensor: Rescaled image.
         """
         img = TF.resize(img, self.size, self.interpolation)
-        mask = TF.resize(mask, self.size, Image.NEAREST)
+        mask = TF.resize(mask, self.size, TF.InterpolationMode.NEAREST)
         return img, mask
 
     def __repr__(self):
