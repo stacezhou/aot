@@ -187,6 +187,39 @@ class YOUTUBEVOS_Test(object):
             return True
 
 
+from pathlib import Path
+class VOS_Test(YOUTUBEVOS_Test):
+    def __init__(self, root='./datasets/YTB', year=2018, split='val', transform=None, rgb=True, result_root=None):
+        super().__init__(root, year, split, transform, rgb, result_root)
+
+        self.db_root_dir = root
+        self.result_root = result_root
+        self.rgb = rgb
+        self.transform = transform
+
+        self.image_root = os.path.join(root, 'JPEGImages')
+        self.label_root = os.path.join(root, 'Annotations')
+        self.seqs = [x.name for x in Path(self.image_root).iterdir() if x.is_dir()]
+    
+    def __getitem__(self, idx):
+        seq_name = self.seqs[idx]
+        images = [ x.name for x in (Path(self.image_root) / seq_name).glob('*.jpg') ] 
+        labels = [ x.name for x in (Path(self.label_root) / seq_name).glob('*.png') ]
+        images = sorted(images)
+        labels = sorted(labels)
+
+        seq_dataset = VOS_Test(
+            self.image_root,
+            self.label_root,
+            seq_name,
+            images,
+            labels,
+            transform=self.transform,
+            rgb = self.rgb
+        )
+        return seq_dataset
+
+
 class YOUTUBEVOS_DenseTest(object):
     def __init__(self,
                  root='./datasets/YTB',
