@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dataloaders.eval_datasets import YOUTUBEVOS_Test, YOUTUBEVOS_DenseTest, DAVIS_Test, EVAL_TEST
+from dataloaders.eval_datasets import YOUTUBEVOS_Test, YOUTUBEVOS_DenseTest, DAVIS_Test, EVAL_TEST, VOS_Test
 import dataloaders.video_transforms as tr
 
 from utils.image import flip_tensor, save_mask
@@ -135,6 +135,16 @@ class Evaluator(object):
                                            split=split,
                                            transform=eval_transforms,
                                            result_root=self.result_root)
+
+        elif 'vos_test' in cfg.TEST_DATASET:
+            self.result_root = os.path.join(cfg.DIR_EVALUATION,
+                                            eval_name,
+                                            'Annotations')
+            self.dataset = VOS_Test(
+                root=cfg.DIR_TEST_ROOT,
+                transform=eval_transforms,
+                result_root=self.result_root
+            )
 
         elif cfg.TEST_DATASET == 'davis2017':
             resolution = 'Full-Resolution' if cfg.TEST_DATASET_FULL_RESOLUTION else '480p'

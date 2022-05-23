@@ -8,7 +8,8 @@ class EngineConfig(DefaultEngineConfig):
 
         self.init_dir()
 
-        self.DATASETS = ['youtubevos', 'davis2017', '']
+        self.DATASETS = ['vos_test']
+        self.DIR_TEST_ROOT = './datasets/OVIS'
 
         self.PRETRAIN_FULL = True  # if False, load encoder only
         self.PRETRAIN_MODEL = './pretrain_models/AOTv2_85.1_80000.pth'
