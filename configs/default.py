@@ -104,6 +104,7 @@ class DefaultEngineConfig():
         self.DIST_BACKEND = "nccl"  # "gloo"
         self.DIST_URL = "tcp://127.0.0.1:13241"
         self.DIST_START_GPU = 0
+        self.USE_LSTT_V2 = True
 
     def init_dir(self):
         self.DIR_DATA = './datasets'
