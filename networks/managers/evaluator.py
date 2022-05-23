@@ -138,7 +138,7 @@ class Evaluator(object):
 
         elif cfg.TEST_DATASET == 'davis2017':
             resolution = 'Full-Resolution' if cfg.TEST_DATASET_FULL_RESOLUTION else '480p'
-            self.result_root = os.path.join(cfg.EVALUATION, eval_name,
+            self.result_root = os.path.join(cfg.DIR_EVALUATION, eval_name,
                                             'Annotations', resolution)
             self.dataset = DAVIS_Test(
                 split=[cfg.TEST_DATASET_SPLIT],
@@ -150,7 +150,7 @@ class Evaluator(object):
 
         elif cfg.TEST_DATASET == 'davis2016':
             resolution = 'Full-Resolution' if cfg.TEST_DATASET_FULL_RESOLUTION else '480p'
-            self.result_root = os.path.join(cfg.EVALUATION, eval_name,
+            self.result_root = os.path.join(cfg.DIR_EVALUATION, eval_name,
                                             'Annotations', resolution)
             self.dataset = DAVIS_Test(
                 split=[cfg.TEST_DATASET_SPLIT],
@@ -161,7 +161,7 @@ class Evaluator(object):
                 result_root=self.result_root)
 
         elif cfg.TEST_DATASET == 'test':
-            self.result_root = os.path.join(cfg.EVALUATION, eval_name,
+            self.result_root = os.path.join(cfg.DIR_EVALUATION, eval_name,
                                             'Annotations')
             self.dataset = EVAL_TEST(eval_transforms, self.result_root)
         else:
@@ -171,9 +171,9 @@ class Evaluator(object):
         self.print_log('Eval {} on {} {}:'.format(cfg.EXP_NAME,
                                                   cfg.TEST_DATASET,
                                                   cfg.TEST_DATASET_SPLIT))
-        self.source_folder = os.path.join(cfg.EVALUATION,
+        self.source_folder = os.path.join(cfg.DIR_EVALUATION,
                                           eval_name, 'Annotations')
-        self.zip_dir = os.path.join(cfg.EVALUATION,
+        self.zip_dir = os.path.join(cfg.DIR_EVALUATION,
                                     '{}.zip'.format(eval_name))
         if not os.path.exists(self.result_root):
             try:
