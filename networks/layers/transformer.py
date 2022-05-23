@@ -40,6 +40,7 @@ class LongShortTermTransformer(nn.Module):
                  droppath_lst=False,
                  droppath_scaling=False,
                  activation="gelu",
+                 topk=0,
                  return_intermediate=False,
                  intermediate_norm=True,
                  use_lstt_v2 = False,
@@ -66,7 +67,7 @@ class LongShortTermTransformer(nn.Module):
                 LongShortTermTransformerBlock(d_model, self_nhead, att_nhead,
                                               dim_feedforward, droppath_rate,
                                               lt_dropout, st_dropout,
-                                              droppath_lst, activation,use_lstt_v2=use_lstt_v2))
+                                              droppath_lst, activation,topk=topk,use_lstt_v2=use_lstt_v2))
         self.layers = nn.ModuleList(layers)
 
         num_norms = num_layers - 1 if intermediate_norm else 0
@@ -137,6 +138,7 @@ class LongShortTermTransformerBlock(nn.Module):
                  droppath_lst=False,
                  activation="gelu",
                  local_dilation=1,
+                 topk=0,
                  use_lstt_v2 = False,
                  enable_corr=True):
         super().__init__()
@@ -154,6 +156,7 @@ class LongShortTermTransformerBlock(nn.Module):
         self.long_term_attn = MultiheadAttention(d_model,
                                                  att_nhead,
                                                  use_linear=False,
+                                                 topk=topk,
                                                  dropout=lt_dropout)
         if enable_corr:
             try:

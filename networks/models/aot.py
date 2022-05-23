@@ -32,6 +32,7 @@ class AOT(nn.Module):
             droppath_lst=cfg.TRAIN_LSTT_DROPPATH_LST,
             droppath_scaling=cfg.TRAIN_LSTT_DROPPATH_SCALING,
             intermediate_norm=cfg.MODEL_DECODER_INTERMEDIATE_LSTT,
+            topk=cfg.TOPK,
             use_lstt_v2=cfg.USE_LSTT_V2,
             return_intermediate=True)
 

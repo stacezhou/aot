@@ -3,10 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from networks.layers.basic import DropOutLogit
 
+def softmax_w_top(x,dim=-1, topk=200):
+    values, indices = torch.topk(x, k=topk, dim=dim)
+    x_exp = values.exp_()
+    x_exp /= torch.sum(x_exp, dim=dim, keepdim=True)
+    x.zero_().scatter_(1, indices, x_exp.type(x.dtype)) 
+    return x
 
 # Long-term attention
 class MultiheadAttention(nn.Module):
-    def __init__(self, d_model, num_head=8, dropout=0., use_linear=True):
+    def __init__(self, d_model, num_head=8, dropout=0., use_linear=True, topk=0):
         super().__init__()
         self.d_model = d_model
         self.num_head = num_head
@@ -14,6 +20,7 @@ class MultiheadAttention(nn.Module):
         self.hidden_dim = d_model // num_head
         self.T = (d_model / num_head)**0.5
         self.use_linear = use_linear
+        self.topk = topk
 
         if use_linear:
             self.linear_Q = nn.Linear(d_model, d_model)
@@ -54,7 +61,10 @@ class MultiheadAttention(nn.Module):
         QK = Q @ K
 
         # Activation
-        attn = torch.softmax(QK, dim=-1)
+        if not self.training and self.topk > 0:
+            attn  = softmax_w_top(QK, dim=-1, topk = self.topk)
+        else:
+            attn = torch.softmax(QK, dim=-1)
 
         # Dropouts
         attn = self.dropout(attn)
