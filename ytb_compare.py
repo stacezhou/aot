@@ -237,16 +237,17 @@ def split_object_masks(pred_video_cls, gt_video_cls, label):
     return pred_video_masks, gt_video_masks
 
 def read_video_pair(pred_video_path, gt_video_path):
-    filenames = sorted([f.name for f in Path(pred_video_path).glob('*.png')])
-    filenames = sorted([f.name for f in Path(gt_video_path).glob('*.png') if f.name in filenames])
+    pred_filenames = sorted([f.name for f in Path(pred_video_path).glob('*.png')])
+    gt_filenames = sorted([f.name for f in Path(gt_video_path).glob('*.png')])
+    gt_filenames = gt_filenames[-len(pred_filenames):]
     pred_video_cls = np.stack([
         np.array(Image.open(Path(pred_video_path) / img))
-        for img in filenames
+        for img in pred_filenames
     ])
     
     gt_video_cls = np.stack([
         np.array(Image.open(Path(gt_video_path) / img))
-        for img in filenames
+        for img in gt_filenames
     ])
     object_labels = np.unique(gt_video_cls)[1:]
     return split_object_masks(pred_video_cls, gt_video_cls, object_labels)
@@ -281,7 +282,7 @@ if __name__ == '__main__':
     pred_videos = [v for v in pred_path.iterdir() if v.name in videos_name]
 
     args = list(zip(videos_name,pred_videos,gt_videos))
-    p = Pool(32)
+    p = Pool(64)
     result = p.map(metric_a_video, args)
     p.close()
     p.join()
