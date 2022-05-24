@@ -5,18 +5,20 @@ from .default import DefaultEngineConfig
 class EngineConfig(DefaultEngineConfig):
     def __init__(self, exp_name='default', model='AOTT'):
         super().__init__(exp_name, model)
-        self.STAGE_NAME = 'PRE_YTB_DAV'
+        self.STAGE_NAME = 'BOOST_FT'
 
         self.init_dir()
 
         self.DATASETS = ['boost']
+        self.TEST_DATASET = ['vos_test']
+        self.DIR_TEST_ROOT = './datasets/BOOST'
         import pandas as pd
         resample_weight_file = '/home/zh21/code/aot/results/boost_ytb_SwinB_AOTL__PRE_YTB_DAV/eval/video_df_youtubevos2019_train_boost_ytb_SwinB_AOTL_PRE_YTB_DAV_ckpt_unknown_ema_vs_train.csv'
         resample_weight_dict = pd.read_csv(resample_weight_file).set_index('name').to_dict()['JF']
         self.BOOST = dict(
             image_root = os.path.join(self.DIR_DATA, 'BOOST','JPEGImages'),
             label_root = os.path.join(self.DIR_DATA, 'BOOST','Annotations'),
-            resample_weight = resample_weight_dict,
+            # resample_weight = resample_weight_dict,
             repeat_time=1,
             rand_gap=3,
             dynamic_merge=True,
