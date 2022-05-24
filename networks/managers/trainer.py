@@ -265,7 +265,7 @@ class Trainer(object):
 
         if 'ovis' in cfg.DATASETS:
             cfg.OVIS.update(dict(
-                transforms=composed_transforms,
+                transform=composed_transforms,
                 seq_len=cfg.DATA_SEQ_LEN,
                 rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
                 merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
@@ -279,7 +279,7 @@ class Trainer(object):
 
         if 'uvo' in cfg.DATASETS:
             cfg.UVO.update(dict(
-                transforms=composed_transforms,
+                transform=composed_transforms,
                 seq_len=cfg.DATA_SEQ_LEN,
                 rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
                 merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
@@ -290,6 +290,35 @@ class Trainer(object):
                 **cfg.UVO
             ) 
             train_datasets.append(train_uvo_dataset)
+
+        def collect_imglistdic(image_root, label_root, suffix = '.jpg',**kw):
+            from pathlib import Path
+            videos = [v.name for v in Path(image_root).iterdir()]
+            label_videos = [v.name for v in Path(label_root).iterdir()]
+            assert set(videos) == set(label_videos)
+            imglistdict = dict()
+            for v in videos:
+                imglist = [f.name for f in (Path(image_root)/v).glob(f'*{suffix}')]
+                labellist = [f.name for f in (Path(label_root)/v).glob(f'*.png')]
+                assert len(imglist) == len(labellist)
+                imglistdict[v] = [sorted(imglist),sorted(labellist)]
+            return imglistdict
+
+        if 'boost' in cfg.DATASETS:
+            imglistdic = collect_imglistdic(**cfg.BOOST)
+            cfg.BOOST.update(dict(
+                transform=composed_transforms,
+                seq_len=cfg.DATA_SEQ_LEN,
+                rand_reverse=cfg.DATA_RANDOM_REVERSE_SEQ,
+                merge_prob=cfg.DATA_DYNAMIC_MERGE_PROB,
+                enable_prev_frame=self.enable_prev_frame,
+                max_obj_n=cfg.MODEL_MAX_OBJ_NUM,
+                imglistdic = imglistdic
+            ))
+            train_boost_dataset = VOSTrain(
+                **cfg.BOOST
+            ) 
+            train_datasets.append(train_boost_dataset)
 
         if 'davis2017' in cfg.DATASETS:
             train_davis_dataset = DAVIS2017_Train(
