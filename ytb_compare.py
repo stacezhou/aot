@@ -264,6 +264,7 @@ if __name__ == '__main__':
     parser.add_argument('gt_path')
     parser.add_argument('pred_path')
     parser.add_argument('--anew',action='store_true')
+    parser.add_argument('--split')
     arg = parser.parse_args()
     
     gt_path = Path(arg.gt_path)
@@ -272,6 +273,10 @@ if __name__ == '__main__':
 
     gt_path = gt_path / 'Annotations'
     pred_path = pred_path / 'Annotations'
+    if 'split' in arg:
+        gt_path = gt_path / arg.split 
+        pred_path = pred_path / arg.split 
+
 
     pred_videos = [v for v in pred_path.iterdir() if v.is_dir()]
     videos_name = [v.name for v in pred_videos]

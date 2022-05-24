@@ -307,6 +307,7 @@ class VOSTrain(Dataset):
                  dynamic_merge=True,
                  enable_prev_frame=False,
                  merge_prob=0.3,
+                 resample_weight=None,
                  max_obj_n=10):
         self.image_root = image_root
         self.label_root = label_root
@@ -322,6 +323,27 @@ class VOSTrain(Dataset):
         self.rgb = rgb
         self.imglistdic = imglistdic
         self.seqs = list(self.imglistdic.keys())
+        if resample_weight is not None:
+            resample_seqs = []
+            for seq in self.seqs:
+                w = resample_weight[seq]
+                if w > 0.92:
+                    continue
+                elif w > 0.85:
+                    resample_seqs.append(seq)
+                elif w > 0.65:
+                    resample_seqs.extend([seq]*2)
+                elif w > 0.45:
+                    resample_seqs.extend([seq]*4)
+                elif w > 0.25:
+                    resample_seqs.extend([seq]*8)
+                else:
+                    resample_seqs.extend([seq]*4)
+            random.shuffle(resample_seqs)
+            self.seqs = resample_seqs
+
+
+
         print('Video Num: {} X {}'.format(len(self.seqs), self.repeat_time))
 
     def __len__(self):
