@@ -10,7 +10,7 @@ class EngineConfig(DefaultEngineConfig):
         self.init_dir()
 
         self.DATASETS = ['boost']
-        self.TEST_DATASET = ['vos_test']
+        self.TEST_DATASET = 'vos_test'
         self.DIR_TEST_ROOT = './datasets/BOOST'
         import pandas as pd
         resample_weight_file = '/home/zh21/code/aot/results/boost_ytb_SwinB_AOTL__PRE_YTB_DAV/eval/video_df_youtubevos2019_train_boost_ytb_SwinB_AOTL_PRE_YTB_DAV_ckpt_unknown_ema_vs_train.csv'

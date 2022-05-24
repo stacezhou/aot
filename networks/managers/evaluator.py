@@ -136,7 +136,7 @@ class Evaluator(object):
                                            transform=eval_transforms,
                                            result_root=self.result_root)
 
-        elif 'vos_test' in cfg.TEST_DATASET:
+        elif 'vos_test' == cfg.TEST_DATASET:
             self.result_root = os.path.join(cfg.DIR_EVALUATION,
                                             eval_name,
                                             'Annotations')
