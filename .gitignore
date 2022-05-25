@@ -4,3 +4,4 @@ datasets
 results
 *.jpg
 *.png
+pretrain_models
