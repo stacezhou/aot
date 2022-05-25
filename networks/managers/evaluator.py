@@ -35,10 +35,12 @@ class Evaluator(object):
 
         print("Use GPU {} for evaluating.".format(self.gpu))
         torch.cuda.set_device(self.gpu)
-
         self.print_log('Build VOS model.')
-        self.model = []
+
+        ####### online ensemble config ###########
         self.cfg.TEST_MULTISCALE = [1., 1]
+        self.TEST_LONG_TERM_MEM_GAP = [5, 5]
+        self.model = []
 
         _cfg = deepcopy(cfg)
         _cfg.TEST_CKPT_PATH = './pretrain_models/AOTv2_85.1_80000.pth'
@@ -51,8 +53,11 @@ class Evaluator(object):
         _cfg.TEST_CKPT_PATH = 'test'
         self.model.append(self.process_pretrained_model(_cfg))
 
-        assert len(self.cfg.TEST_MULTISCALE) == len(self.model)
+        assert len(self.cfg.TEST_MULTISCALE) == len(self.model) == len(self.TEST_LONG_TERM_MEM_GAP)
+        ####### online ensemble config ###########
+
         self.model = list(reversed(self.model))
+        self.TEST_LONG_TERM_MEM_GAP = list(reversed(self.TEST_LONG_TERM_MEM_GAP))
         self.prepare_dataset()
 
     def process_pretrained_model(self, cfg):
@@ -274,8 +279,7 @@ class Evaluator(object):
                                              phase='eval',
                                              aot_model=self.model.pop(),
                                              gpu_id=self.gpu,
-                                             long_term_mem_gap=self.cfg.
-                                             TEST_LONG_TERM_MEM_GAP))
+                                             long_term_mem_gap=self.TEST_LONG_TERM_MEM_GAP.pop()))
                             all_engines[-1].eval()
 
                         engine = all_engines[aug_idx]
