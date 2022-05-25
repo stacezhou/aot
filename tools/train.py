@@ -46,7 +46,6 @@ def main():
     engine_config = importlib.import_module('configs.' + args.stage)
 
     cfg = engine_config.EngineConfig(args.exp_name, args.model)
-    cfg.USE_LSTT_V2 = args.lstt_v2
 
     if len(args.datasets) > 0:
         cfg.DATASETS = args.datasets

@@ -44,10 +44,10 @@ class Evaluator(object):
 
         self.print_log('Build VOS model.')
         self.model = build_vos_model(cfg.MODEL_VOS, cfg).cuda(self.gpu)
-        ggn = '/home/zh21/code/Generic-Grouping/configs/mask_rcnn/class_agn_mask_rcnn.py'
-        self.ggn = build_detector(Config.fromfile(ggn).model).cuda(self.gpu)
-        ggn_ckpt = '/home/zh21/code/ggn_coco.pth'
-        load_checkpoint(self.ggn, ggn_ckpt)
+        # ggn = '/home/zh21/code/Generic-Grouping/configs/mask_rcnn/class_agn_mask_rcnn.py'
+        # self.ggn = build_detector(Config.fromfile(ggn).model).cuda(self.gpu)
+        # ggn_ckpt = '/home/zh21/code/ggn_coco.pth'
+        # load_checkpoint(self.ggn, ggn_ckpt)
         self.process_pretrained_model()
 
         self.prepare_dataset()
@@ -205,13 +205,13 @@ class Evaluator(object):
         video_num = 0
         total_video_num = len(self.dataset)
         start_eval_time = time.time()
-        debug_subset = [
-            '3255fcad2f',
-            '108ca5419a',
-            '14dc31fcf5',
-            '393abc40d1',
-            '12d307c850'
-        ]
+        # debug_subset = [
+        #     '3255fcad2f',
+        #     '108ca5419a',
+        #     '14dc31fcf5',
+        #     '393abc40d1',
+        #     '12d307c850'
+        # ]
 
         if self.seq_queue is not None:
             if self.rank == 0:
@@ -234,8 +234,8 @@ class Evaluator(object):
 
 
             seq_name = seq_dataset.seq_name
-            if seq_name not in debug_subset:
-                continue
+            # if seq_name not in debug_subset:
+            #     continue
             print('GPU {} - Processing Seq {} [{}/{}]:'.format(
                 self.gpu, seq_name, video_num, total_video_num))
 
@@ -266,6 +266,9 @@ class Evaluator(object):
             seq_outputs = []
             memories = None
             saved_memories = []
+            def cat_memory(*memory_list):
+                return [ [ torch.cat(ts, dim=0) for ts in zip(*ls) ]
+                    for ls in zip(*memory_list) ]
             for idx,(imgs,ref_masks,obj_nums) in enumerate(seq_inputs):
 
                 ref_masks = ref_masks.cuda() if ref_masks is not None else None
@@ -273,15 +276,22 @@ class Evaluator(object):
                                                 memories = memories,
                                                 ref_masks = ref_masks, 
                                                 obj_nums=obj_nums)
+                curr_memory = memory
+                if memories is None:
+                    curr_memories = curr_memory
+                else:
+                    curr_memories = [cat_memory(memories[0], curr_memory[0]), memories[1]]
+                curr_pred_masks, *curr_memory = self.model(
+                    imgs.cuda(), memories = curr_memories, obj_nums = obj_nums
+                )
+
+                
                 if memories is None:
                     memories = memory 
                 else:
                     memories[1] = memory[1]
                     if idx % 5 == 0:
-                        memories[0] = [
-                            [ torch.cat([t1,t2], dim=0) for t1,t2 in zip(l1,l2) ]
-                            for l1,l2 in zip(memories[0],memory[0])
-                        ]
+                        memories[0] = cat_memory(memories[0], memory[0])
                 
                 saved_memories.append(memory)
                 seq_outputs.append(pred_masks)

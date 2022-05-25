@@ -12,7 +12,7 @@ class DefaultEngineConfig():
 
         self.STAGE_NAME = 'default'
 
-        self.USE_LSTT_V2 = False
+        self.USE_LSTT_V2 = True
         self.DATASETS = ['youtubevos']
         self.DATA_WORKERS = 8
         self.DATA_RANDOMCROP = (465,
@@ -138,8 +138,8 @@ class DefaultEngineConfig():
                 assert len(imglist) == len(labellist)
                 imglistdict[v] = [sorted(imglist),sorted(labellist)]
             return imglistdict
-        self.UVO['imglistdic'] = collect_imglistdic(**self.UVO)
-        self.OVIS['imglistdic'] = collect_imglistdic(**self.OVIS)
+        # self.UVO['imglistdic'] = collect_imglistdic(**self.UVO)
+        # self.OVIS['imglistdic'] = collect_imglistdic(**self.OVIS)
         
         
         self.DIR_ROOT = './results'
