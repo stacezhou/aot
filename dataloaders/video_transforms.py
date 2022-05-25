@@ -614,25 +614,25 @@ class MultiRestrictSize(object):
                     new_w = int(
                         np.around(new_w / self.max_stride) * self.max_stride)
 
-            if new_h == h and new_w == w:
-                samples.append(sample)
-            else:
-                new_sample = {}
-                for elem in sample.keys():
-                    if 'meta' in elem:
-                        new_sample[elem] = sample[elem]
-                        continue
-                    tmp = sample[elem]
-                    if 'label' in elem:
-                        new_sample[elem] = sample[elem]
-                        continue
+            new_sample = {}
+            for elem in sample.keys():
+                if 'meta' in elem:
+                    new_sample[elem] = sample[elem]
+                    continue
+                tmp = sample[elem]
+                if 'label' in elem:
+                    new_sample[elem] = sample[elem]
+                    continue
+                else:
+                    if new_h == h and new_w == w:
+                        tmp = tmp
                     else:
                         flagval = cv2.INTER_CUBIC
                         tmp = cv2.resize(tmp,
-                                         dsize=(new_w, new_h),
-                                         interpolation=flagval)
-                        new_sample[elem] = tmp
-                samples.append(new_sample)
+                                        dsize=(new_w, new_h),
+                                        interpolation=flagval)
+                    new_sample[elem] = tmp
+            samples.append(new_sample)
 
             if self.flip:
                 now_sample = samples[-1]
