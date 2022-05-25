@@ -326,19 +326,21 @@ class VOSTrain(Dataset):
         if resample_weight is not None:
             resample_seqs = []
             for seq in self.seqs:
-                w = resample_weight[seq]
-                if w > 0.92:
+                if seq not in resample_weight :
+                    resample_seqs.append(seq)
                     continue
-                elif w > 0.85:
+
+                w = resample_weight[seq]
+                if w > 0.85:
                     resample_seqs.append(seq)
                 elif w > 0.65:
                     resample_seqs.extend([seq]*2)
                 elif w > 0.45:
-                    resample_seqs.extend([seq]*4)
+                    resample_seqs.extend([seq]*5)
                 elif w > 0.25:
-                    resample_seqs.extend([seq]*8)
+                    resample_seqs.extend([seq]*10)
                 else:
-                    resample_seqs.extend([seq]*4)
+                    resample_seqs.extend([seq]*20)
             random.shuffle(resample_seqs)
             self.seqs = resample_seqs
 

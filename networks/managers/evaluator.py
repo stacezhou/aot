@@ -143,7 +143,8 @@ class Evaluator(object):
             self.dataset = VOS_Test(
                 root=cfg.DIR_TEST_ROOT,
                 transform=eval_transforms,
-                result_root=self.result_root
+                result_root=self.result_root,
+                resample_weight=cfg.RESAMPLE,
             )
 
         elif cfg.TEST_DATASET == 'davis2017':

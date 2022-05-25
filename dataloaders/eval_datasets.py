@@ -189,7 +189,10 @@ class YOUTUBEVOS_Test(object):
 
 from pathlib import Path
 class VOS_Test(YOUTUBEVOS_Test):
-    def __init__(self, root='./datasets/YTB', year=2018, split='val', transform=None, rgb=True, result_root=None):
+    def __init__(self, root='./datasets/YTB', year=2018, split='val',
+
+        resample_weight=None,
+        transform=None, rgb=True, result_root=None):
 
         self.db_root_dir = root
         self.result_root = result_root
@@ -200,6 +203,25 @@ class VOS_Test(YOUTUBEVOS_Test):
         self.label_root = os.path.join(root, 'Annotations')
         self.seqs = [x.name for x in Path(self.image_root).iterdir() if x.is_dir()]
     
+        import random
+        if resample_weight is not None:
+            resample_seqs = []
+            for seq in self.seqs:
+                if seq not in resample_weight :
+                    if random.randint(0,10) > 1:
+                        resample_seqs.append(seq)
+                    continue
+
+                w = resample_weight[seq]
+                if w > 0.92 and random.randint(0,10) > 1:
+                    continue
+                else:
+                    resample_seqs.append(seq)
+
+            random.shuffle(resample_seqs)
+            self.seqs = resample_seqs
+            print(len(self.seqs))
+
     def __getitem__(self, idx):
         seq_name = self.seqs[idx]
         images = [ x.name for x in (Path(self.image_root) / seq_name).glob('*.jpg') ] 

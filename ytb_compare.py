@@ -249,7 +249,9 @@ def read_video_pair(pred_video_path, gt_video_path):
         np.array(Image.open(Path(gt_video_path) / img))
         for img in gt_filenames
     ])
-    object_labels = np.unique(gt_video_cls)[1:]
+    object_labels = np.unique(gt_video_cls)[1:] 
+    if len(object_labels) == 0:
+        object_labels = [1]
     return split_object_masks(pred_video_cls, gt_video_cls, object_labels)
 
 def metric_a_video(args):
@@ -304,7 +306,7 @@ if __name__ == '__main__':
         align_result[k]=v
     
     df = pd.DataFrame(align_result)
-    df.to_csv(out_path.parent / f'df_{out_path.stem}.csv', float_format='%.3f')
+    df.to_csv(out_path.parent / f'df_{out_path.stem}.csv', float_format='%.3f',mode='w')
     video_df = (
         df.mean()
         .reset_index()
@@ -314,7 +316,7 @@ if __name__ == '__main__':
         .drop(columns='num_obj')
         .sort_values('JF')
     )
-    video_df.to_csv(out_path.parent / f'video_df_{out_path.stem}.csv', float_format='%.3f')
+    video_df.to_csv(out_path.parent / f'video_df_{out_path.stem}.csv', float_format='%.3f', mode='w')
 
     frame_df = (
         df.transpose()
@@ -324,6 +326,6 @@ if __name__ == '__main__':
         .mean()
         .drop(columns='obj')
     )
-    frame_df.to_csv(out_path.parent / f'frame_df_{out_path.stem}.csv', float_format='%.3f')
+    frame_df.to_csv(out_path.parent / f'frame_df_{out_path.stem}.csv', float_format='%.3f', mode='w')
     print(video_df.head(10))
     

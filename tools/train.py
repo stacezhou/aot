@@ -38,7 +38,6 @@ def main():
     parser.add_argument('--lr', type=float, default=-1.)
     parser.add_argument('--total_step', type=int, default=-1.)
     parser.add_argument('--start_step', type=int, default=-1.)
-    parser.add_argument('--lstt_v2', action='store_true')
     
 
     args = parser.parse_args()
@@ -46,7 +45,6 @@ def main():
     engine_config = importlib.import_module('configs.' + args.stage)
 
     cfg = engine_config.EngineConfig(args.exp_name, args.model)
-    cfg.USE_LSTT_V2 = args.lstt_v2
 
     if len(args.datasets) > 0:
         cfg.DATASETS = args.datasets
