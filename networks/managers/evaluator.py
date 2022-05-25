@@ -46,8 +46,15 @@ class Evaluator(object):
         _cfg.TEST_CKPT_PATH = './pretrain_models/AOTv2_85.1_80000.pth'
         _cfg.USE_COO = False
         _cfg.USE_LSTT_V2 = False
-        # _cfg.MEM_LIMIT = None
-        _cfg.MEM_LIMIT = 1e8
+        _cfg.MEM_LIMIT = None
+        # _cfg.MEM_LIMIT = 1e8 
+        # MEM_LIMIT 在计算 long attention 时 THWHW 太大会爆显存，
+        # 可以将其切成大小为 MEM_LIMIT 分步计算。 
+        # 但是存在数值不稳定性, 一开始虽然误差很小，
+        # 但是到最后几帧虽然误差累积就会有差异，
+        # 使用该方法复现 AOTv2 时 
+        # 746 个视频只有 3 个视频结果与原 AOTv2 存在差异，且结果 IoU 在 97% 以上
+        # 多模型 ensemble 时，只在 scale 较大的模型使用 split forward 预期影响可以忽略
         self.model.append(self.process_pretrained_model(_cfg))
 
         _cfg = deepcopy(cfg)
