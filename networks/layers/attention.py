@@ -25,12 +25,23 @@ class MultiheadAttention(nn.Module):
         self.projection = nn.Linear(d_model, d_model)
         self._init_weight()
 
-    def forward(self, Q, K, V):
+    def forward(self, Q, K, V, mem_limit=None):
         """
         :param Q: A 3d tensor with shape of [T_q, bs, C_q]
         :param K: A 3d tensor with shape of [T_k, bs, C_k]
         :param V: A 3d tensor with shape of [T_v, bs, C_v]
         """
+        if mem_limit is not None:
+            N = Q.shape[0]
+            M = K.shape[0]
+            step = int((mem_limit - M) // M)
+            outputs = []
+            for i in range(0,N,step):
+                out, _ = self.forward(Q[i:i+step], K, V)
+                outputs.append(out)
+            outputs = torch.cat(outputs,dim=0)
+            return outputs, None
+
         num_head = self.num_head
         hidden_dim = self.hidden_dim
 

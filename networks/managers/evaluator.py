@@ -38,7 +38,7 @@ class Evaluator(object):
         self.print_log('Build VOS model.')
 
         ####### online ensemble config ###########
-        self.cfg.TEST_MULTISCALE = [1., 1]
+        self.cfg.TEST_MULTISCALE = [2, 1]
         self.TEST_LONG_TERM_MEM_GAP = [5, 5]
         self.model = []
 
@@ -46,6 +46,8 @@ class Evaluator(object):
         _cfg.TEST_CKPT_PATH = './pretrain_models/AOTv2_85.1_80000.pth'
         _cfg.USE_COO = False
         _cfg.USE_LSTT_V2 = False
+        # _cfg.MEM_LIMIT = None
+        _cfg.MEM_LIMIT = 1e8
         self.model.append(self.process_pretrained_model(_cfg))
 
         _cfg = deepcopy(cfg)

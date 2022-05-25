@@ -40,6 +40,7 @@ class AOT(nn.Module):
             droppath_scaling=cfg.TRAIN_LSTT_DROPPATH_SCALING,
             intermediate_norm=cfg.MODEL_DECODER_INTERMEDIATE_LSTT,
             use_lstt_v2=cfg.USE_LSTT_V2,
+            mem_limit=cfg.MEM_LIMIT,
             return_intermediate=True)
 
         decoder_indim = cfg.MODEL_ENCODER_EMBEDDING_DIM * \

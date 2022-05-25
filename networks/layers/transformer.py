@@ -42,6 +42,7 @@ class LongShortTermTransformer(nn.Module):
                  return_intermediate=False,
                  intermediate_norm=True,
                  use_lstt_v2 = False,
+                 mem_limit=None,
                  final_norm=True):
 
         super().__init__()
@@ -65,7 +66,9 @@ class LongShortTermTransformer(nn.Module):
                 LongShortTermTransformerBlock(d_model, self_nhead, att_nhead,
                                               dim_feedforward, droppath_rate,
                                               lt_dropout, st_dropout,
-                                              droppath_lst, activation,use_lstt_v2=use_lstt_v2))
+                                              droppath_lst, activation,use_lstt_v2=use_lstt_v2,
+                                              mem_limit=mem_limit
+                                              ))
         self.layers = nn.ModuleList(layers)
 
         num_norms = num_layers - 1 if intermediate_norm else 0
@@ -137,10 +140,12 @@ class LongShortTermTransformerBlock(nn.Module):
                  activation="gelu",
                  local_dilation=1,
                  use_lstt_v2 = False,
+                 mem_limit = None,
                  enable_corr=True):
         super().__init__()
 
         self.use_lstt_v2 = use_lstt_v2
+        self.mem_limit = mem_limit
         # Self-attention
         self.norm1 = _get_norm(d_model)
         self.self_attn = MultiheadAttention(d_model, self_nhead)
@@ -216,7 +221,6 @@ class LongShortTermTransformerBlock(nn.Module):
                 curr_id_emb=None,
                 self_pos=None,
                 size_2d=(30, 30)):
-
         # Self-attention
         _tgt = self.norm1(tgt)
         q = k = self.with_pos_embed(_tgt, self_pos)
@@ -241,7 +245,7 @@ class LongShortTermTransformerBlock(nn.Module):
             global_K,global_V = self.make_global_kv([curr_K,curr_V], curr_id_emb)
             local_K,local_V = self.make_local_kv([global_K,global_V],size_2d)
 
-        tgt2 = self.long_term_attn(curr_Q, global_K, global_V)[0]
+        tgt2 = self.long_term_attn(curr_Q, global_K, global_V, mem_limit=self.mem_limit)[0]
         tgt3 = self.short_term_attn(local_Q, local_K, local_V)[0]
 
         if self.droppath_lst:

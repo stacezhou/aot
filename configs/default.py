@@ -106,6 +106,7 @@ class DefaultEngineConfig():
         self.DIST_START_GPU = 0
         self.USE_LSTT_V2 = True
         self.USE_COO = False
+        self.MEM_LIMIT = None
 
     def init_dir(self):
         self.DIR_DATA = './datasets'
