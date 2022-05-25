@@ -4,6 +4,7 @@ from networks.encoders import build_encoder
 from networks.layers.transformer import LongShortTermTransformer
 from networks.decoders import build_decoder
 from networks.layers.position import PositionEmbeddingSine
+import torch
 
 
 class AOT(nn.Module):
@@ -19,6 +20,12 @@ class AOT(nn.Module):
         self.encoder_projector = nn.Conv2d(cfg.MODEL_ENCODER_DIM[-1],
                                            cfg.MODEL_ENCODER_EMBEDDING_DIM,
                                            kernel_size=1)
+        if cfg.USE_COO:
+            print('use coo')
+            self.coo_attention = CoordAttention(cfg.MODEL_ENCODER_DIM[-1], cfg.MODEL_ENCODER_DIM[-1])
+            self.with_coo = True
+        else:
+            self.with_coo = False
 
         self.LSTT = LongShortTermTransformer(
             cfg.MODEL_LSTT_NUM,
@@ -81,6 +88,8 @@ class AOT(nn.Module):
 
     def encode_image(self, img):
         xs = self.encoder(img)
+        if self.with_coo:
+            xs[-1] = self.coo_attention(xs[-1])
         xs[-1] = self.encoder_projector(xs[-1])
         return xs
 
@@ -114,3 +123,48 @@ class AOT(nn.Module):
             self.patch_wise_id_bank.weight.view(
                 self.cfg.MODEL_ENCODER_EMBEDDING_DIM, -1).permute(0, 1),
             gain=17**-2 if self.cfg.MODEL_ALIGN_CORNERS else 16**-2)
+
+### Coordiate Attention
+class h_sigmoid(nn.Module):
+    def __init__(self, inplace=True):
+        super(h_sigmoid, self).__init__()
+        self.relu = nn.ReLU6(inplace=inplace)
+
+    def forward(self, x):
+        return self.relu(x + 3) / 6
+
+
+class h_swish(nn.Module):
+    def __init__(self, inplace=True):
+        super(h_swish, self).__init__()
+        self.sigmoid = h_sigmoid(inplace=inplace)
+
+    def forward(self, x):
+        return x * self.sigmoid(x)
+
+
+class CoordAttention(nn.Module):
+
+    def __init__(self, in_channels, out_channels, reduction=16):
+        super(CoordAttention, self).__init__()
+        self.pool_w, self.pool_h = nn.AdaptiveAvgPool2d((1, None)), nn.AdaptiveAvgPool2d((None, 1))
+        temp_c = max(8, in_channels // reduction)
+        self.conv1 = nn.Conv2d(in_channels, temp_c, kernel_size=1, stride=1, padding=0)
+
+        self.bn1 = nn.BatchNorm2d(temp_c)
+        self.act1 = h_swish()
+
+        self.conv2 = nn.Conv2d(temp_c, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv3 = nn.Conv2d(temp_c, out_channels, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x):
+        short = x
+        n, c, H, W = x.shape
+        x_h, x_w = self.pool_h(x), self.pool_w(x).permute(0, 1, 3, 2)
+        x_cat = torch.cat([x_h, x_w], dim=2)
+        out = self.act1(self.bn1(self.conv1(x_cat)))
+        x_h, x_w = torch.split(out, [H, W], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)
+        out_h = torch.sigmoid(self.conv2(x_h))
+        out_w = torch.sigmoid(self.conv3(x_w))
+        return short * out_w * out_h

@@ -18,6 +18,7 @@ from utils.eval import zip_folder
 
 from networks.models import build_vos_model
 from networks.engines import build_engine
+from copy import deepcopy
 
 
 class Evaluator(object):
@@ -36,21 +37,33 @@ class Evaluator(object):
         torch.cuda.set_device(self.gpu)
 
         self.print_log('Build VOS model.')
-        self.model = build_vos_model(cfg.MODEL_VOS, cfg).cuda(self.gpu)
+        self.model = []
+        self.cfg.TEST_MULTISCALE = [1., 1]
 
-        self.process_pretrained_model()
+        _cfg = deepcopy(cfg)
+        _cfg.TEST_CKPT_PATH = './pretrain_models/AOTv2_85.1_80000.pth'
+        _cfg.USE_COO = False
+        _cfg.USE_LSTT_V2 = False
+        self.model.append(self.process_pretrained_model(_cfg))
 
+        _cfg = deepcopy(cfg)
+        _cfg.USE_COO = True
+        _cfg.TEST_CKPT_PATH = 'test'
+        self.model.append(self.process_pretrained_model(_cfg))
+
+        assert len(self.cfg.TEST_MULTISCALE) == len(self.model)
+        self.model = list(reversed(self.model))
         self.prepare_dataset()
 
-    def process_pretrained_model(self):
-        cfg = self.cfg
+    def process_pretrained_model(self, cfg):
+
+        model = build_vos_model(cfg.MODEL_VOS, cfg).cuda(self.gpu)
 
         if cfg.TEST_CKPT_PATH == 'test':
             self.ckpt = 'test'
             self.print_log('Test evaluation.')
-            return
 
-        if cfg.TEST_CKPT_PATH is None:
+        elif cfg.TEST_CKPT_PATH is None:
             if cfg.TEST_CKPT_STEP is not None:
                 ckpt = str(cfg.TEST_CKPT_STEP)
             else:
@@ -68,7 +81,7 @@ class Evaluator(object):
                 cfg.DIR_CKPT = os.path.join(cfg.DIR_RESULT, 'ema_ckpt')
             cfg.TEST_CKPT_PATH = os.path.join(cfg.DIR_CKPT,
                                               'save_step_%s.pth' % ckpt)
-            self.model, removed_dict = load_network(self.model,
+            model, removed_dict = load_network(model,
                                                     cfg.TEST_CKPT_PATH,
                                                     self.gpu)
             if len(removed_dict) > 0:
@@ -78,7 +91,7 @@ class Evaluator(object):
                 cfg.TEST_CKPT_PATH))
         else:
             self.ckpt = 'unknown'
-            self.model, removed_dict = load_network(self.model,
+            model, removed_dict = load_network(model,
                                                     cfg.TEST_CKPT_PATH,
                                                     self.gpu)
             if len(removed_dict) > 0:
@@ -86,6 +99,8 @@ class Evaluator(object):
                     'Remove {} from pretrained model.'.format(removed_dict))
             self.print_log('Load checkpoint from {}'.format(
                 cfg.TEST_CKPT_PATH))
+        model.eval()
+        return model
 
     def prepare_dataset(self):
         cfg = self.cfg
@@ -190,7 +205,6 @@ class Evaluator(object):
 
     def evaluating(self):
         cfg = self.cfg
-        self.model.eval()
         video_num = 0
         processed_video_num = 0
         total_time = 0
@@ -233,7 +247,7 @@ class Evaluator(object):
                 seq_dataloader = DataLoader(seq_dataset,
                                             batch_size=1,
                                             shuffle=False,
-                                            num_workers=cfg.TEST_WORKERS,
+                                            num_workers=0,
                                             pin_memory=True)
 
                 if 'all_frames' in cfg.TEST_DATASET_SPLIT:
@@ -258,7 +272,7 @@ class Evaluator(object):
                             all_engines.append(
                                 build_engine(cfg.MODEL_ENGINE,
                                              phase='eval',
-                                             aot_model=self.model,
+                                             aot_model=self.model.pop(),
                                              gpu_id=self.gpu,
                                              long_term_mem_gap=self.cfg.
                                              TEST_LONG_TERM_MEM_GAP))
