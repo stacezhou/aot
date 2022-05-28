@@ -245,6 +245,7 @@ class FinetuneTrain(StaticTrain):
         assert len(self.img_list) == len(self.mask_list)
         print(f'{len(self.img_list)} imgs are used for finetune.')
 
+<<<<<<< HEAD
 
     def sample_sequence(self, idx):
         img_pil = self.load_image_in_PIL(self.img_list[idx], 'RGB')
@@ -293,6 +294,8 @@ class FinetuneTrain(StaticTrain):
 
         return sample
 
+=======
+>>>>>>> 620a6add191759dfe50091f9753404ebc08face5
 class VOSTrain(Dataset):
     def __init__(self,
                  image_root,
